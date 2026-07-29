@@ -1,4 +1,4 @@
-﻿# region 导入
+# region 导入
 import asyncio
 import re
 import time
@@ -471,20 +471,14 @@ class XiaohongshuMixin:
         img_type = "unknown"
         target_model = None
 
-        if getattr(self, "xhs_enable_ai_upscale", True):
-            need_upscale, detected_type, recommended_model = await self.upscaler.check_is_low_quality(current_path)
-            img_type = detected_type
-            target_model = recommended_model
-
-            if need_upscale:
-                if task_info is not None:
-                    task_info["stage"] = "🎨 AI 升图中"
-                    task_info["percent"] = "0.0%"
-                async with self.heavy_task_lock:
-                    upscaled_path = await self.upscaler.upscale_image(current_path, request_id, override_model=target_model)
-                    if upscaled_path != current_path:
-                        current_path = upscaled_path
-                        was_upscaled = True
+        # 2. AI 超分升图（低质图判定 + Upscayl 处理）
+        upscaled_path = await self._ai_upscale_platform_image(
+            current_path, request_id,
+            "xhs_enable_ai_upscale", "xhs_low_quality_threshold", "xhs_upscayl_model_name"
+        )
+        if upscaled_path != current_path:
+            current_path = upscaled_path
+            was_upscaled = True
 
         if getattr(self, "xhs_enable_ffmpeg_compress", True):
             if task_info is not None:

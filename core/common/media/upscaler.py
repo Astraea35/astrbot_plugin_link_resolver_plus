@@ -10,13 +10,14 @@ from .classifier import cv2_imread_safe, get_classifier
 from .process import monitor_process_percentage
 
 UPSCAYL_MODEL_NAME_MAP = {
-    "digital-art-4x": "digital-art-4x",
-    "high-fidelity-4x": "high-fidelity-4x",
-    "remacri-4x": "remacri-4x",
-    "ultramix-balanced-4x": "ultramix-balanced-4x",
-    "ultrasharp-4x": "ultrasharp-4x",
-    "upscayl-lite-4x": "upscayl-lite-4x",
-    "upscayl-standard-4x": "upscayl-standard-4x",
+    "自动 (CV特征识别)": "auto",
+    "数字艺术 (digital-art-4x)": "digital-art-4x",
+    "高保真 (high-fidelity-4x)": "high-fidelity-4x",
+    "Remacri (remacri-4x)": "remacri-4x",
+    "超混合平衡 (ultramix-balanced-4x)": "ultramix-balanced-4x",
+    "超锐化 (ultrasharp-4x)": "ultrasharp-4x",
+    "轻量 (upscayl-lite-4x)": "upscayl-lite-4x",
+    "标准 (upscayl-standard-4x)": "upscayl-standard-4x",
 }
 
 
@@ -26,8 +27,13 @@ class UpscaylUpscaler:
     def __init__(self, plugin_instance):
         self.plugin = plugin_instance
 
-    async def check_is_low_quality(self, image_path: Path, threshold: int = None) -> tuple[bool, str, str]:
-        """智能双门槛检测 (分辨率 + 模糊度)
+    async def check_is_low_quality(
+        self,
+        image_path: Path,
+        threshold: int = None,
+        model_setting: str = "自动 (CV特征识别)"
+    ) -> tuple[bool, str, str]:
+        """智能质量检测 (尺寸 + 模糊度)，支持自动匹配或强行指定模型
 
         Returns:
             (need_upscale, img_type_label, recommended_model)
@@ -35,7 +41,7 @@ class UpscaylUpscaler:
         try:
             local_threshold = threshold or getattr(self.plugin, "xhs_low_quality_threshold", 1080)
 
-            # 1. 物理分辨率检测
+            # 1. 物理分辨率检测 (无论自动还是手动，都优先获取宽高)
             def _get_dims():
                 with PILImage.open(image_path) as img:
                     return img.width, img.height
@@ -43,23 +49,34 @@ class UpscaylUpscaler:
             width, height = await asyncio.to_thread(_get_dims)
             is_low_res = (width < local_threshold or height < local_threshold)
 
-            # 2. 类型预测与门槛分配
-            classifier = get_classifier()
-            is_anime = await asyncio.to_thread(classifier.predict_is_anime, image_path)
-            if is_anime:
-                img_type_label = "二次元"
-                dynamic_blur_threshold = 35.0
-                recommended_model = "digital-art-4x"
+            # 2. 模型分配与判定参数准备
+            if model_setting in ("自动 (CV特征识别)", "auto") or "Auto" in model_setting:
+                classifier = get_classifier()
+                is_anime = await asyncio.to_thread(classifier.predict_is_anime, image_path)
+                if is_anime:
+                    img_type_label = "二次元(CV)"
+                    dynamic_blur_threshold = 35.0
+                    recommended_model = "digital-art-4x"
+                else:
+                    img_type_label = "照片(CV)"
+                    dynamic_blur_threshold = 80.0
+                    recommended_model = "ultrasharp-4x"
             else:
-                img_type_label = "照片"
-                dynamic_blur_threshold = 80.0
-                recommended_model = "ultrasharp-4x"
+                # 手动选定了模型：跳过二次元/照片分类检测，使用用户选择的模型
+                raw_model = UPSCAYL_MODEL_NAME_MAP.get(model_setting, model_setting)
+                recommended_model = raw_model
+                img_type_label = f"手动指定({raw_model})"
+                if "digital-art" in raw_model:
+                    dynamic_blur_threshold = 35.0
+                else:
+                    dynamic_blur_threshold = 80.0
 
-            # 3. 判断
+            # 3. 核心维度拦截：选为“自动”或“手动”均强制检查像素长宽！像素不达标（长/宽小于阈值）必须升图
             if is_low_res:
-                logger.info("🔳 [%s] 尺寸 (%dx%d) < 阈值 (%dpx)，触发 AI 升图", img_type_label, width, height, local_threshold)
+                logger.info("🔳 [%s] 尺寸 (%dx%d) < 阈值 (%dpx)，像素不达标，强制触发 AI 升图", img_type_label, width, height, local_threshold)
                 return True, img_type_label, recommended_model
 
+            # 4. 尺寸达标后，进一步检测拉普拉斯 (Laplacian) 画面模糊度
             img_gray = cv2_imread_safe(image_path, cv2.IMREAD_GRAYSCALE)
             if img_gray is not None:
                 blur_score = cv2.Laplacian(img_gray, cv2.CV_64F).var()

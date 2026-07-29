@@ -25,7 +25,6 @@ class ConfigMixin:
 
     def _get_config_value(self, key: str, default):
         keys = key.split(".")
-        # 核心修改：优先动态从 Context 实时拉取最新配置字典，确保 Web 面板保存后即刻生效
         val = self.context.get_config() if (hasattr(self, "context") and self.context) else getattr(self, "config", {})
         for k in keys:
             if isinstance(val, dict):
@@ -63,7 +62,6 @@ class ConfigMixin:
             self.managed_emoji_font_ready = False
 
     def _refresh_config(self) -> None:
-        # 核心修改：刷新时同步更新 Context 最新引用的 config 字典
         if hasattr(self, "context") and self.context:
             self.config = self.context.get_config()
 
@@ -159,6 +157,7 @@ class ConfigMixin:
         self.douyin_render_card = self.douyin_summary_mode == SUMMARY_MODE_CARD
         self.douyin_enable_ai_upscale = bool(self._get_config_value("douyin_settings.enable_ai_upscale", True))
         self.douyin_low_quality_threshold = max(100, int(self._get_config_value("douyin_settings.low_quality_threshold", 1080)))
+        self.douyin_upscayl_model_name = str(self._get_config_value("douyin_settings.upscayl_model_name", "自动 (CV特征识别)")).strip()
 
         # 微博配置
         self.weibo_max_media = max(
@@ -179,6 +178,7 @@ class ConfigMixin:
             self.weibo_cookie_enabled = self.weibo_extractor.has_user_cookie()
         self.weibo_enable_ai_upscale = bool(self._get_config_value("weibo_settings.enable_ai_upscale", True))
         self.weibo_low_quality_threshold = max(100, int(self._get_config_value("weibo_settings.low_quality_threshold", 1080)))
+        self.weibo_upscayl_model_name = str(self._get_config_value("weibo_settings.upscayl_model_name", "自动 (CV特征识别)")).strip()
 
         # X 配置
         self.twitter_max_media = max(
@@ -189,6 +189,7 @@ class ConfigMixin:
         )
         self.twitter_enable_ai_upscale = bool(self._get_config_value("twitter_settings.enable_ai_upscale", True))
         self.twitter_low_quality_threshold = max(100, int(self._get_config_value("twitter_settings.low_quality_threshold", 1080)))
+        self.twitter_upscayl_model_name = str(self._get_config_value("twitter_settings.upscayl_model_name", "自动 (CV特征识别)")).strip()
 
         # 小红书配置
         self.xhs_max_media = max(
@@ -217,7 +218,8 @@ class ConfigMixin:
         self.xhs_image_merge_send = bool(self._get_config_value("xhs_settings.image_merge_send", False))
         self.xhs_enable_ai_upscale = bool(self._get_config_value("xhs_settings.enable_ai_upscale", True))
         self.xhs_low_quality_threshold = max(100, int(self._get_config_value("xhs_settings.low_quality_threshold", 1080)))
-        self.upscayl_model_name = str(self._get_config_value("xhs_settings.upscayl_model_name", "digital-art-4x")).strip()
+        self.xhs_upscayl_model_name = str(self._get_config_value("xhs_settings.upscayl_model_name", "自动 (CV特征识别)")).strip()
+        self.upscayl_model_name = self.xhs_upscayl_model_name
         self.upscayl_double_pass = bool(self._get_config_value("xhs_settings.upscayl_double_pass", True))
         self.upscayl_enable_taa = bool(self._get_config_value("xhs_settings.upscayl_enable_taa", True))
         self.upscayl_scale = max(1, int(self._get_config_value("xhs_settings.upscayl_scale", 2)))

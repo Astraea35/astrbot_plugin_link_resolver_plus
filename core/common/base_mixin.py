@@ -531,12 +531,15 @@ class BaseUtilsMixin:
     async def _monitor_process_percentage(self, proc: asyncio.subprocess.Process, stage_prefix: str) -> None:
         await monitor_process_percentage(proc, stage_prefix, self)
 
-    async def _ai_upscale_platform_image(self, image_path, request_id, enable_flag, threshold_attr):
+    async def _ai_upscale_platform_image(self, image_path, request_id, enable_flag, threshold_attr, model_attr=None):
         if not getattr(self, enable_flag, True):
             return image_path
         threshold = getattr(self, threshold_attr, 1080)
+        model_setting = getattr(self, model_attr, "自动 (CV特征识别)") if model_attr else "自动 (CV特征识别)"
         try:
-            need_upscale, img_type, recommended_model = await self.upscaler.check_is_low_quality(image_path, threshold=threshold)
+            need_upscale, img_type, recommended_model = await self.upscaler.check_is_low_quality(
+                image_path, threshold=threshold, model_setting=model_setting
+            )
             if not need_upscale:
                 return image_path
 

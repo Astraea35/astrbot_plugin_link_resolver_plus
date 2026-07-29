@@ -245,7 +245,7 @@ class WeiboMixin:
                 for i, img_path in enumerate(image_paths):
                     upscaled = await self._ai_upscale_platform_image(
                         img_path, request_id,
-                        "weibo_enable_ai_upscale", "weibo_low_quality_threshold"
+                        "weibo_enable_ai_upscale", "weibo_low_quality_threshold", "weibo_upscayl_model_name"
                     )
                     if upscaled != img_path and upscaled.exists():
                         new_image_paths.append(upscaled)

@@ -1,15 +1,15 @@
 # 🌟 AstrBot Link Resolver (魔改增强版)
 
-本插件基于开源项目 [vacacia/astrbot_plugin_link_resolver](https://github.com/vacacia/astrbot_plugin_link_resolver) **v1.0.10** 版本进行深度定制与性能魔改。在保留原版对 B站、抖音、小红书、微博、X/Twitter 基础解析能力的基础上，新增了 **ONNX 智能分类、Upscayl AI 图像超分、FFmpeg AV1/AVIF 极致压缩、B站扫码登录、异步进度查询及异机部署文件传输适配** 等核心功能。
+本插件基于开源项目 [vacacia/astrbot_plugin_link_resolver](https://github.com/vacacia/astrbot_plugin_link_resolver) **v1.0.10** 版本进行深度定制与性能魔改。在保留原版对 B站、抖音、小红书、微博、X/Twitter 基础解析能力的基础上，新增了 **OpenCV视觉特征 智能分类、Upscayl AI 图像超分、FFmpeg AV1/AVIF 极致压缩、B站扫码登录、异步进度查询及异机部署文件传输适配** 等核心功能。
 
 ---
 
 ## 🎨 魔改核心特性 (vs 原版对比)
 
-### 1. 🧠 ONNX + OpenCV 智能二次元/照片分类器
+### 1. 🧠 OpenCV 智能二次元/照片分类器
 
 * **原版**：小红书/图文内容下载后直接发送原图或固定处理。
-* **魔改版**：引入轻量级 ONNX 模型（`anime_classifier.onnx`）配合 OpenCV 视觉特征提取（饱和度、线稿边缘、平坦度）。
+* **魔改版**：引入 OpenCV 视觉特征提取（饱和度、线稿边缘、平坦度）。
 * **效果**：自动识别图片类型，**二次元/插画** 自动调用 `digital-art-4x` 模型，**真实照片** 自动调用 `ultrasharp-4x` 模型，实现精准超分。
 
 ### 2. 🖼️ 全平台 Upscayl AI 图像超分 (全平台支持)

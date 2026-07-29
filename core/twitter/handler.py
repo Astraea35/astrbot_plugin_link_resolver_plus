@@ -233,7 +233,7 @@ class TwitterMixin:
             for i, img_path in enumerate(image_paths):
                 upscaled = await self._ai_upscale_platform_image(
                     img_path, request_id,
-                    "twitter_enable_ai_upscale", "twitter_low_quality_threshold"
+                    "twitter_enable_ai_upscale", "twitter_low_quality_threshold", "twitter_upscayl_model_name"
                 )
                 if upscaled != img_path and upscaled.exists():
                     new_image_paths.append(upscaled)
