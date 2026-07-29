@@ -137,6 +137,11 @@
 ## 📥 安装方法
 
 进入 AstrBot 的 `data/plugins` 目录，执行以下命令克隆本项目：
+外部工具依赖：
+
+FFmpeg：需安装系统环境变量中，或在配置项 ffmpeg_bin_path 中指定绝对路径。
+
+Upscayl：若使用 AI 升图功能，请在系统安装 Upscayl 官方客户端。默认会自动寻找 C:/Program Files/Upscayl/... 路径，非默认路径可在插件设置中自定义。
 
 ```bash
 git clone [https://github.com/Astraea35/astrbot_plugin_link_resolver_plus.git](https://github.com/Astraea35/astrbot_plugin_link_resolver_plus.git)
