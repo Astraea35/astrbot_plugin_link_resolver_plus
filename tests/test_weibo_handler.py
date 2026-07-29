@@ -209,7 +209,7 @@ class TestWeiboHandler(unittest.IsolatedAsyncioTestCase):
                 plugin, event, "https://weibo.com/1234567890/AbCdEfGhI"
             )
 
-        plugin._prepare_component_for_merge_send.assert_not_awaited()
+        plugin._prepare_component_for_merge_send.assert_awaited_once()
         plugin.cleanup_files.assert_awaited_once()
         self.assertEqual(len(event.sent), 1)
         chain = event.sent[0].chain

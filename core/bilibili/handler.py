@@ -1353,7 +1353,10 @@ class BilibiliMixin:
                 else:
                     # 非合并转发：只发视频
                     logger.debug("🚀 B站普通消息准备发送%s", source_tag)
-                    await event.send(MessageChain([video_component]))
+                    direct_video_component = await self._prepare_component_for_merge_send(
+                        video_component
+                    )
+                    await event.send(MessageChain([direct_video_component]))
 
                 timing["send"] = time.perf_counter() - send_start
                 # endregion

@@ -315,7 +315,10 @@ class TwitterMixin:
                     nodes.nodes.append(Node(uin=sender_uin, content=[merge_component]))
                 await event.send(MessageChain([nodes]))
             else:
-                await event.send(MessageChain([media_components[0]]))
+                direct_component = await self._prepare_component_for_merge_send(
+                    media_components[0]
+                )
+                await event.send(MessageChain([direct_component]))
 
             timing["send"] = time.perf_counter() - send_start
             total_elapsed = time.perf_counter() - process_start

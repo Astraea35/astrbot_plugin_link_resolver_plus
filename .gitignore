@@ -10,6 +10,7 @@ cache/
 cookies/
 fonts/
 *.png
+!logo.png
 *.jpg
 *.mp4
 *.avif

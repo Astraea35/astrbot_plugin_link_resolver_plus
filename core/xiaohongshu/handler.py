@@ -810,7 +810,10 @@ class XiaohongshuMixin:
             else:
                 for component in media_components:
                     if isinstance(component, Video):
-                        yield event.chain_result([component])
+                        video_component = await self._prepare_component_for_merge_send(
+                            component
+                        )
+                        yield event.chain_result([video_component])
                         break
 
         # 2. 独立后置发送高压 AVIF 原图文件

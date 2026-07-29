@@ -538,7 +538,10 @@ class DouyinMixin:
                 source_tag,
                 len(media_components),
             )
-            await event.send(MessageChain([media_components[0]]))
+            direct_component = await self._prepare_component_for_merge_send(
+                media_components[0]
+            )
+            await event.send(MessageChain([direct_component]))
 
         timing["send"] = time.perf_counter() - send_start
         # endregion

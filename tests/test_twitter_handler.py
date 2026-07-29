@@ -164,7 +164,7 @@ class TestTwitterHandler(unittest.IsolatedAsyncioTestCase):
                 plugin, event, "https://x.com/bob/status/1234567890123456789"
             )
 
-        plugin._prepare_component_for_merge_send.assert_not_awaited()
+        plugin._prepare_component_for_merge_send.assert_awaited_once()
         self.assertEqual(len(event.sent), 1)
         chain = event.sent[0].chain
         self.assertEqual(len(chain), 1)
