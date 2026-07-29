@@ -25,7 +25,8 @@ class ConfigMixin:
 
     def _get_config_value(self, key: str, default):
         keys = key.split(".")
-        val = self.config
+        # 核心修改：优先动态从 Context 实时拉取最新配置字典，确保 Web 面板保存后即刻生效
+        val = self.context.get_config() if (hasattr(self, "context") and self.context) else getattr(self, "config", {})
         for k in keys:
             if isinstance(val, dict):
                 val = val.get(k)
@@ -33,7 +34,7 @@ class ConfigMixin:
                 return default
             if val is None:
                 return default
-        return val
+        return default
 
     def _read_summary_mode(self, key: str) -> str:
         mode = str(self._get_config_value(key, SUMMARY_MODE_TEXT)).strip()
@@ -62,6 +63,10 @@ class ConfigMixin:
             self.managed_emoji_font_ready = False
 
     def _refresh_config(self) -> None:
+        # 核心修改：刷新时同步更新 Context 最新引用的 config 字典
+        if hasattr(self, "context") and self.context:
+            self.config = self.context.get_config()
+
         self._configure_managed_fonts()
         user_font_paths = get_user_font_paths()
         managed_font_paths = get_managed_font_paths()

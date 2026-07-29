@@ -139,6 +139,9 @@ class LinkResolverPlugin(
         if self._is_self_message(event) or not self._is_group_allowed(event):
             return
 
+        # 核心修改：确保处理卡片链接时也能实时刷新获取最新配置
+        self._refresh_config()
+
         links: list[str] = []
         has_json_component = False
         if hasattr(event, "message_obj") and hasattr(event.message_obj, "message"):
