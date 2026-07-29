@@ -224,9 +224,20 @@ class ConfigMixin:
         self.upscayl_enable_taa = bool(self._get_config_value("xhs_settings.upscayl_enable_taa", True))
         self.upscayl_scale = max(1, int(self._get_config_value("xhs_settings.upscayl_scale", 2)))
         
-        # 智能匹配 Upscayl 资源路径（优先使用有效自定义配置，留空或失效时自动回退到内置资源）
-        user_bin = str(self._get_config_value("xhs_settings.upscayl_bin_path", "")).strip()
-        user_models = str(self._get_config_value("xhs_settings.upscayl_models_path", "")).strip()
+        # 智能全平台联合匹配 Upscayl 资源路径（优先使用有效自定义配置，消除单平台读取局限）
+        user_bin = (
+            str(self._get_config_value("xhs_settings.upscayl_bin_path", "")) or
+            str(self._get_config_value("douyin_settings.upscayl_bin_path", "")) or
+            str(self._get_config_value("weibo_settings.upscayl_bin_path", "")) or
+            str(self._get_config_value("twitter_settings.upscayl_bin_path", ""))
+        ).strip().strip('"').strip("'")
+        
+        user_models = (
+            str(self._get_config_value("xhs_settings.upscayl_models_path", "")) or
+            str(self._get_config_value("douyin_settings.upscayl_models_path", "")) or
+            str(self._get_config_value("weibo_settings.upscayl_models_path", "")) or
+            str(self._get_config_value("twitter_settings.upscayl_models_path", ""))
+        ).strip().strip('"').strip("'")
 
         builtin_bin = get_default_upscayl_bin_path()
         builtin_models = get_default_upscayl_models_path()

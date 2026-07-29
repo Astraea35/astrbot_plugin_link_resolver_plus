@@ -41,7 +41,7 @@ class UpscaylUpscaler:
         try:
             local_threshold = threshold or getattr(self.plugin, "xhs_low_quality_threshold", 1080)
 
-            # 1. 物理分辨率检测 (无论自动还是手动，都优先获取宽高)
+            # 1. 物理分辨率检测
             def _get_dims():
                 with PILImage.open(image_path) as img:
                     return img.width, img.height
@@ -62,7 +62,6 @@ class UpscaylUpscaler:
                     dynamic_blur_threshold = 80.0
                     recommended_model = "ultrasharp-4x"
             else:
-                # 手动选定了模型：跳过二次元/照片分类检测，使用用户选择的模型
                 raw_model = UPSCAYL_MODEL_NAME_MAP.get(model_setting, model_setting)
                 recommended_model = raw_model
                 img_type_label = f"手动指定({raw_model})"
@@ -71,12 +70,15 @@ class UpscaylUpscaler:
                 else:
                     dynamic_blur_threshold = 80.0
 
-            # 3. 核心维度拦截：选为“自动”或“手动”均强制检查像素长宽！像素不达标（长/宽小于阈值）必须升图
+            # 打印明确检测日志
+            logger.info("📏 [尺寸检测] 当前图片尺寸: %dx%d | 设定判定阈值: %dpx", width, height, local_threshold)
+
+            # 3. 尺寸硬性拦截：长或宽小于阈值时强制触发升图
             if is_low_res:
                 logger.info("🔳 [%s] 尺寸 (%dx%d) < 阈值 (%dpx)，像素不达标，强制触发 AI 升图", img_type_label, width, height, local_threshold)
                 return True, img_type_label, recommended_model
 
-            # 4. 尺寸达标后，进一步检测拉普拉斯 (Laplacian) 画面模糊度
+            # 4. 尺寸达标后，检测拉普拉斯 (Laplacian) 画面模糊度
             img_gray = cv2_imread_safe(image_path, cv2.IMREAD_GRAYSCALE)
             if img_gray is not None:
                 blur_score = cv2.Laplacian(img_gray, cv2.CV_64F).var()
@@ -106,6 +108,11 @@ class UpscaylUpscaler:
         scale = str(getattr(self.plugin, "upscayl_scale", 2))
         enable_taa = getattr(self.plugin, "upscayl_enable_taa", True)
         double_pass = getattr(self.plugin, "upscayl_double_pass", True)
+
+        # 核心拦截防御：先校验该路径在硬盘上是否存在！
+        if not upscayl_bin or not Path(upscayl_bin).exists():
+            logger.error("❌ [Upscayl 路径错误] 找不到可执行文件！程序当前调用的路径为: '%s'。请检查面板中的路径配置是否有效！", upscayl_bin)
+            return input_path
 
         model_name = override_model or UPSCAYL_MODEL_NAME_MAP.get(
             getattr(self.plugin, "upscayl_model_name", "digital-art-4x"), "digital-art-4x"
