@@ -33,7 +33,7 @@ class ConfigMixin:
                 return default
             if val is None:
                 return default
-        return default
+        return val
 
     def _read_summary_mode(self, key: str) -> str:
         mode = str(self._get_config_value(key, SUMMARY_MODE_TEXT)).strip()
