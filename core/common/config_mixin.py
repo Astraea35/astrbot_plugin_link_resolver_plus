@@ -25,7 +25,7 @@ class ConfigMixin:
 
     def _get_config_value(self, key: str, default):
         keys = key.split(".")
-        val = self.context.get_config() if (hasattr(self, "context") and self.context) else getattr(self, "config", {})
+        val = getattr(self, "config", {})
         for k in keys:
             if isinstance(val, dict):
                 val = val.get(k)
@@ -62,9 +62,6 @@ class ConfigMixin:
             self.managed_emoji_font_ready = False
 
     def _refresh_config(self) -> None:
-        if hasattr(self, "context") and self.context:
-            self.config = self.context.get_config()
-
         self._configure_managed_fonts()
         user_font_paths = get_user_font_paths()
         managed_font_paths = get_managed_font_paths()
@@ -219,7 +216,8 @@ class ConfigMixin:
         self.xhs_enable_ai_upscale = bool(self._get_config_value("xhs_settings.enable_ai_upscale", True))
         xhs_settings = self._get_config_value("xhs_settings", {})
         self.xhs_low_quality_threshold = max(100, int(self._get_config_value("xhs_settings.low_quality_threshold", 1080)))
-        logger.info("🔧 [小红书配置诊断] xhs_settings=%s | low_quality_threshold=%d", xhs_settings, self.xhs_low_quality_threshold)
+        xhs_setting_keys = sorted(xhs_settings) if isinstance(xhs_settings, dict) else []
+        logger.info("🔧 [小红书配置诊断] 配置键=%s | 原始阈值=%r | 生效阈值=%d", xhs_setting_keys, xhs_settings.get("low_quality_threshold") if isinstance(xhs_settings, dict) else None, self.xhs_low_quality_threshold)
         self.xhs_upscayl_model_name = str(self._get_config_value("xhs_settings.upscayl_model_name", "自动 (CV特征识别)")).strip()
         self.upscayl_model_name = self.xhs_upscayl_model_name
         self.upscayl_double_pass = bool(self._get_config_value("xhs_settings.upscayl_double_pass", True))
