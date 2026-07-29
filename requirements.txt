@@ -5,4 +5,3 @@ Pillow
 aiohttp
 numpy
 opencv-python-headless
-onnxruntime
