@@ -217,7 +217,9 @@ class ConfigMixin:
         )
         self.xhs_image_merge_send = bool(self._get_config_value("xhs_settings.image_merge_send", False))
         self.xhs_enable_ai_upscale = bool(self._get_config_value("xhs_settings.enable_ai_upscale", True))
+        xhs_settings = self._get_config_value("xhs_settings", {})
         self.xhs_low_quality_threshold = max(100, int(self._get_config_value("xhs_settings.low_quality_threshold", 1080)))
+        logger.info("🔧 [小红书配置诊断] xhs_settings=%s | low_quality_threshold=%d", xhs_settings, self.xhs_low_quality_threshold)
         self.xhs_upscayl_model_name = str(self._get_config_value("xhs_settings.upscayl_model_name", "自动 (CV特征识别)")).strip()
         self.upscayl_model_name = self.xhs_upscayl_model_name
         self.upscayl_double_pass = bool(self._get_config_value("xhs_settings.upscayl_double_pass", True))
