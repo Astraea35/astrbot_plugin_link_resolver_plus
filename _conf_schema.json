@@ -157,14 +157,14 @@
             },
             "upscayl_bin_path": {
                 "description": "Upscayl 可执行文件路径",
-                "default": "C:/Program Files/Upscayl/resources/bin/upscayl-bin.exe",
-                "hint": "upscayl-bin.exe 的绝对路径",
+                "default": "",
+                "hint": "留空时自动使用插件内置升图程序；自定义时填 upscayl-bin.exe 的绝对路径",
                 "type": "string"
             },
             "upscayl_models_path": {
                 "description": "Upscayl 模型文件夹路径",
-                "default": "C:/Program Files/Upscayl/resources/models",
-                "hint": "models 文件夹绝对路径",
+                "default": "",
+                "hint": "留空时自动使用插件内置模型库；自定义时填 models 文件夹绝对路径",
                 "type": "string"
             },
             "upscayl_scale": {
@@ -250,14 +250,14 @@
             },
             "upscayl_bin_path": {
                 "description": "Upscayl 可执行文件路径",
-                "default": "C:/Program Files/Upscayl/resources/bin/upscayl-bin.exe",
-                "hint": "upscayl-bin.exe 的绝对路径",
+                "default": "",
+                "hint": "留空时自动使用插件内置升图程序；自定义时填 upscayl-bin.exe 的绝对路径",
                 "type": "string"
             },
             "upscayl_models_path": {
                 "description": "Upscayl 模型文件夹路径",
-                "default": "C:/Program Files/Upscayl/resources/models",
-                "hint": "models 文件夹绝对路径",
+                "default": "",
+                "hint": "留空时自动使用插件内置模型库；自定义时填 models 文件夹绝对路径",
                 "type": "string"
             },
             "upscayl_scale": {
@@ -331,14 +331,14 @@
             },
             "upscayl_bin_path": {
                 "description": "Upscayl 可执行文件路径",
-                "default": "C:/Program Files/Upscayl/resources/bin/upscayl-bin.exe",
-                "hint": "upscayl-bin.exe 的绝对路径",
+                "default": "",
+                "hint": "留空时自动使用插件内置升图程序；自定义时填 upscayl-bin.exe 的绝对路径",
                 "type": "string"
             },
             "upscayl_models_path": {
                 "description": "Upscayl 模型文件夹路径",
-                "default": "C:/Program Files/Upscayl/resources/models",
-                "hint": "models 文件夹绝对路径",
+                "default": "",
+                "hint": "留空时自动使用插件内置模型库；自定义时填 models 文件夹绝对路径",
                 "type": "string"
             },
             "upscayl_scale": {
@@ -489,14 +489,14 @@
             "upscayl_bin_path": {
                 "description": "Upscayl 可执行文件路径",
                 "type": "string",
-                "hint": "upscayl-bin.exe 的绝对路径",
-                "default": "C:/Program Files/Upscayl/resources/bin/upscayl-bin.exe"
+                "hint": "留空时自动使用插件内置升图程序；自定义时填 upscayl-bin.exe 的绝对路径",
+                "default": ""
             },
             "upscayl_models_path": {
                 "description": "Upscayl 模型文件夹路径",
                 "type": "string",
-                "hint": "models 文件夹绝对路径",
-                "default": "C:/Program Files/Upscayl/resources/models"
+                "hint": "留空时自动使用插件内置模型库；自定义时填 models 文件夹绝对路径",
+                "default": ""
             },
             "enable_ffmpeg_compress": {
                 "description": "小红书图片 FFmpeg AV1 压缩",

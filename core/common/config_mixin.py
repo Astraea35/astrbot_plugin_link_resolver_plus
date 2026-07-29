@@ -9,7 +9,11 @@ from .font_manager import (
     set_managed_fonts_enabled,
     set_user_font_paths,
 )
-from .paths import get_bili_cookies_file
+from .paths import (
+    get_bili_cookies_file,
+    get_default_upscayl_bin_path,
+    get_default_upscayl_models_path,
+)
 from ..xiaohongshu.render import XiaohongshuCardRenderer
 
 SUMMARY_MODE_TEXT = "文字摘要"
@@ -212,8 +216,28 @@ class ConfigMixin:
         self.upscayl_double_pass = bool(self._get_config_value("xhs_settings.upscayl_double_pass", True))
         self.upscayl_enable_taa = bool(self._get_config_value("xhs_settings.upscayl_enable_taa", True))
         self.upscayl_scale = max(1, int(self._get_config_value("xhs_settings.upscayl_scale", 2)))
-        self.upscayl_bin_path = str(self._get_config_value("xhs_settings.upscayl_bin_path", "C:/Program Files/Upscayl/resources/bin/upscayl-bin.exe")).strip()
-        self.upscayl_models_path = str(self._get_config_value("xhs_settings.upscayl_models_path", "C:/Program Files/Upscayl/resources/models")).strip()
+        
+        # 智能匹配 Upscayl 资源路径（优先使用有效自定义配置，留空或失效时自动回退到内置资源）
+        user_bin = str(self._get_config_value("xhs_settings.upscayl_bin_path", "")).strip()
+        user_models = str(self._get_config_value("xhs_settings.upscayl_models_path", "")).strip()
+
+        builtin_bin = get_default_upscayl_bin_path()
+        builtin_models = get_default_upscayl_models_path()
+
+        if user_bin and Path(user_bin).exists():
+            self.upscayl_bin_path = user_bin
+        elif builtin_bin.exists():
+            self.upscayl_bin_path = str(builtin_bin.resolve())
+        else:
+            self.upscayl_bin_path = user_bin or str(builtin_bin)
+
+        if user_models and Path(user_models).exists():
+            self.upscayl_models_path = user_models
+        elif builtin_models.exists():
+            self.upscayl_models_path = str(builtin_models.resolve())
+        else:
+            self.upscayl_models_path = user_models or str(builtin_models)
+
         self.xhs_enable_ffmpeg_compress = bool(self._get_config_value("xhs_settings.enable_ffmpeg_compress", True))
         self.ffmpeg_bin_path = str(self._get_config_value("xhs_settings.ffmpeg_bin_path", "ffmpeg")).strip()
 

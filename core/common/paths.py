@@ -140,5 +140,21 @@ def get_twitter_image_path() -> Path:
     return _ensure_dir(get_twitter_cache() / "images")
 
 
+# 内置资源路径
+def get_plugin_root() -> Path:
+    """获取插件根路径"""
+    return Path(__file__).resolve().parents[2]
+
+
+def get_default_upscayl_bin_path() -> Path:
+    """获取默认内置 upscayl-bin.exe 路径"""
+    return get_plugin_root() / "resources" / "bin" / "upscayl-bin.exe"
+
+
+def get_default_upscayl_models_path() -> Path:
+    """获取默认内置 models 目录"""
+    return get_plugin_root() / "resources" / "models"
+
+
 # endregion
 # endregion
