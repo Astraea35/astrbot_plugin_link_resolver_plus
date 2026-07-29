@@ -85,6 +85,7 @@ class LinkResolverPlugin(
     # region 事件正则过滤器与路由
     @filter.regex(BILI_MESSAGE_PATTERN, priority=10)
     async def handle_bili_video(self, event: AstrMessageEvent):
+        self._refresh_config()
         if self._has_json_component(event) or not self._is_group_allowed(event):
             return
         if not self.bili_enable_auto_download:
@@ -99,6 +100,7 @@ class LinkResolverPlugin(
 
     @filter.regex(DOUYIN_MESSAGE_PATTERN, priority=10)
     async def handle_douyin(self, event: AstrMessageEvent):
+        self._refresh_config()
         if self._has_json_component(event) or not self._is_group_allowed(event):
             return
         notify_id = await self._send_notify(event, "⏳ 正在解析 抖音 媒体，请稍候...")
@@ -110,6 +112,7 @@ class LinkResolverPlugin(
 
     @filter.regex(XHS_MESSAGE_PATTERN, priority=10)
     async def handle_xhs(self, event: AstrMessageEvent):
+        self._refresh_config()
         if self._has_json_component(event) or not self._is_group_allowed(event):
             return
         notify_id = await self._send_notify(event, "⏳ 正在解析 小红书 内容，请稍候...")
@@ -122,6 +125,7 @@ class LinkResolverPlugin(
 
     @filter.regex(WEIBO_MESSAGE_PATTERN, priority=10)
     async def handle_weibo(self, event: AstrMessageEvent):
+        self._refresh_config()
         if self._has_json_component(event) or not self._is_group_allowed(event):
             return
         self._register_parse_task("weibo", event)
@@ -129,6 +133,7 @@ class LinkResolverPlugin(
 
     @filter.regex(TWITTER_MESSAGE_PATTERN, priority=10)
     async def handle_twitter(self, event: AstrMessageEvent):
+        self._refresh_config()
         if self._has_json_component(event) or not self._is_group_allowed(event):
             return
         self._register_parse_task("twitter", event)
