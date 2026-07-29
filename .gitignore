@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+
+# 插件运行产生的临时缓存与敏感数据
+cache/
+cookies/
+fonts/
+*.png
+*.jpg
+*.mp4
+*.avif
+qrcode_login.png
+
+# IDE & 系统文件
+.idea/
+.vscode/
+.DS_Store
