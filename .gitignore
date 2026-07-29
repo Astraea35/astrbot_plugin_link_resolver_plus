@@ -19,3 +19,8 @@ qrcode_login.png
 .idea/
 .vscode/
 .DS_Store
+
+# Auto-added by upload script
+upload.py
+upload.bat
+上传GitHub.py
