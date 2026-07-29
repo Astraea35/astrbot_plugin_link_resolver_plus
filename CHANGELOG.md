@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.3.0
+
+- 修复AI升图处理标注中的占位符问题，现在图片类型会明确显示为“二次元(CV)”、“照片(CV)”或“手动指定”，实际升图模型名称如“标准(upscayl-standard-4x)”、“数字艺术(digital-art-4x)”、“超锐化(ultrasharp-4x)”等会准确展示，不再出现unknown或auto回退值；改动涉及小红书handler及标注生成逻辑，重启AstrBot后生效。
+
 ## v1.2.7
 
 - 修复AstrBot与NapCat不在同一主机时视频发送ENOENT错误，改为将本地缓存视频通过文件服务注册为HTTP URL后发送，覆盖B站、抖音、小红书、微博、X/Twitter等平台；需确保AstrBot文件服务地址对NapCat可达（非127.0.0.1），并在配置中设置正确主机地址后重启生效；本地编译与差异检查通过。

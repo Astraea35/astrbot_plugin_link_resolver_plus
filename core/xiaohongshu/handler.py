@@ -468,17 +468,34 @@ class XiaohongshuMixin:
 
         preview_path = None
         was_upscaled = False
-        img_type = "unknown"
+        img_type = "未检测"
         target_model = None
 
-        # 2. AI 超分升图（低质图判定 + Upscayl 处理）
-        upscaled_path = await self._ai_upscale_platform_image(
-            current_path, request_id,
-            "xhs_enable_ai_upscale", "xhs_low_quality_threshold", "xhs_upscayl_model_name"
-        )
-        if upscaled_path != current_path:
-            current_path = upscaled_path
-            was_upscaled = True
+        if getattr(self, "xhs_enable_ai_upscale", True):
+            threshold = getattr(self, "xhs_low_quality_threshold", 1080)
+            model_setting = getattr(
+                self, "xhs_upscayl_model_name", "自动 (CV特征识别)"
+            )
+            need_upscale, img_type, target_model = (
+                await self.upscaler.check_is_low_quality(
+                    current_path,
+                    threshold=threshold,
+                    model_setting=model_setting,
+                )
+            )
+            if need_upscale:
+                if task_info is not None:
+                    task_info["stage"] = "🎨 AI 升图中"
+                    task_info["percent"] = "0.0%"
+                async with self.heavy_task_lock:
+                    upscaled_path = await self.upscaler.upscale_image(
+                        current_path,
+                        request_id,
+                        override_model=target_model,
+                    )
+                if upscaled_path != current_path:
+                    current_path = upscaled_path
+                    was_upscaled = True
 
         if getattr(self, "xhs_enable_ffmpeg_compress", True):
             if task_info is not None:
@@ -683,10 +700,11 @@ class XiaohongshuMixin:
                 proc_path, preview_path, was_upscaled, img_type, target_model = await self._post_process_xhs_image(
                     img_path, request_id, index=i+1, total=len(image_paths)
                 )
-                img_label = img_type if img_type else "unknown"
+                img_label = img_type or "未检测"
                 if was_upscaled:
-                    raw_model = target_model if target_model else "auto"
-                    model_label = MODEL_DISPLAY_NAMES.get(raw_model, raw_model)
+                    model_label = MODEL_DISPLAY_NAMES.get(
+                        target_model, target_model or "未记录"
+                    )
                     upscale_annotations.append(f"  • 图 {i+1}: 🎨 已 AI 升图 [{img_label} | {model_label}]")
                 else:
                     upscale_annotations.append(f"  • 图 {i+1}: ⚡ 原始画质 [{img_label}]")
