@@ -252,7 +252,6 @@ class ConfigMixin:
         else:
             self.upscayl_models_path = user_models or DEFAULT_UPSCAYL_MODELS_PATH
 
-        self.xhs_enable_ffmpeg_compress = bool(self._get_config_value("xhs_settings.enable_ffmpeg_compress", True))
         self.ffmpeg_bin_path = str(self._get_config_value("xhs_settings.ffmpeg_bin_path", "ffmpeg")).strip()
 
         # 通用设置

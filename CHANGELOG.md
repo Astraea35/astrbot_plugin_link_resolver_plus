@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.4.4
+
+- 移除小红书专属 AVIF 压缩配置及其加载逻辑。
+- 小红书图片后处理改为读取全局 general_settings.enable_ffmpeg_compress。
+- 全局开关说明更新为覆盖小红书、抖音、微博和 X。
+- 同步修正 MOD_DESCRIPTION.md 中的旧配置路径说明。
+
 ## v1.4.3
 
 - 配置新增 private_filter.mode 和 private_filter.user_list，默认黑名单空列表，保持私聊全部放行。

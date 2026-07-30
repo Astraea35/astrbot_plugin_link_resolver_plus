@@ -497,7 +497,7 @@ class XiaohongshuMixin:
                     current_path = upscaled_path
                     was_upscaled = True
 
-        if getattr(self, "xhs_enable_ffmpeg_compress", True):
+        if getattr(self, "enable_global_ffmpeg_compress", True):
             if task_info is not None:
                 task_info["stage"] = "🗜️ FFmpeg AV1 压缩中"
                 task_info["percent"] = "0.0%"

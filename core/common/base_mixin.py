@@ -492,6 +492,10 @@ class BaseUtilsMixin:
 
     async def _video_component_from_path(self, video_path: Path) -> Comp.Video:
         file_ref = await self._prepare_napcat_media_path(video_path)
+        if getattr(self, "napcat_media_container_path", ""):
+            # fromFileSystem() resolves paths on the Windows AstrBot host. Keep the
+            # Linux file URI intact so the remote NapCat container resolves it.
+            return Comp.Video.fromURL(f"file://{file_ref}")
         return Comp.Video.fromFileSystem(file_ref)
 
     def _get_merge_sender_uin(self, event: AstrMessageEvent) -> str:

@@ -22,8 +22,7 @@
 │  3. 🗜️ AVIF 压缩 (全平台)                                                   │
 │     文件: main.py - _ffmpeg_compress_av1 / _convert_to_avif_with_preview    │
 │     说明: FFmpeg libaom-av1 CRF18 高质量压缩，带7天缓存                      │
-│     全平台可用: 小红书(xhs_settings.enable_ffmpeg_compress)                  │
-│                 其他平台(general_settings.enable_ffmpeg_compress)            │
+│     全平台可用: general_settings.enable_ffmpeg_compress                       │
 │                                                                             │
 │  4. 🖼️ JPG 全图预览 (全平台)                                                │
 │     文件: main.py - _generate_jpg_preview                                   │

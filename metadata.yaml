@@ -1,6 +1,6 @@
 name: 多平台无水印下载+AI升图+AVIF自动转码
 desc: "小红书/抖音/微博/X/B站无水印解析 + CV智能分类 + Upscayl AI升图 + FFmpeg AV1/AVIF压缩 + B站扫码登录"
 help: "监听 B 站/抖音/小红书/微博/X 链接，支持 CV 视觉特征二次元分类、Upscayl AI 升图与 AVIF 极致压缩传输。"
-version: "1.4.3"
+version: "1.4.4"
 author: "Astraea35"
 repo: https://github.com/Astraea35/astrbot_plugin_link_resolver_plus
