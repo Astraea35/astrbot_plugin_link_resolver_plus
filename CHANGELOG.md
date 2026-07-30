@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.5.0
+
+- 公共逻辑已集中到 [annotations.py](D:\\飞牛双向同步\\AstrBot插件\\小红书等多平台无水印下载\\astrbot_plugin_link_resolver_plus\\core\\common\\media\\annotations.py)，统一负责模型显示名、原始/转码后体积、百分比和标注文案；各平台 handler 不再各自维护格式。升图公共方法也会返回分类与模型元数据，避免各平台标注不一致。
+
 ## v1.4.7
 
 - 抖音只要下载到图片，就执行 AVIF 转码和独立文件发送，不再受 video_url 元数据影响。

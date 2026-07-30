@@ -1,6 +1,10 @@
 ﻿# core/common/media/__init__.py
 # 统一媒体处理管道
 
+from .annotations import (
+    build_image_processing_annotation_text,
+    format_image_processing_annotation,
+)
 from .classifier import AnimePhotoClassifier, get_classifier
 from .encoder import MediaEncoder
 from .process import monitor_process_percentage
@@ -12,4 +16,6 @@ __all__ = [
     "UpscaylUpscaler",
     "MediaEncoder",
     "monitor_process_percentage",
+    "build_image_processing_annotation_text",
+    "format_image_processing_annotation",
 ]

@@ -19,6 +19,10 @@ from astrbot.api.event import AstrMessageEvent, MessageChain
 from astrbot.api.message_components import Image, Node, Nodes, Plain, Video
 
 from ..common import SizeLimitExceeded, get_twitter_image_path, get_twitter_video_path
+from ..common.media import (
+    build_image_processing_annotation_text,
+    format_image_processing_annotation,
+)
 from . import (
     TWITTER_DOWNLOAD_HEADERS,
     TwitterParseError,
@@ -226,16 +230,20 @@ class TwitterMixin:
 
         # 提取已成功下载的图片路径
         image_paths = [p for p in media_paths if p.suffix.lower() in ('.jpg', '.jpeg', '.png', '.webp')]
+        source_image_paths = list(image_paths)
+        image_processing_metadata = [(False, "未检测", None) for _ in image_paths]
 
         # 3. 后处理：AI 升图
         if getattr(self, "twitter_enable_ai_upscale", True) and image_urls and image_paths:
             logger.info("🎨 X 图片 AI 升图检测开始...")
             new_image_paths = []
+            image_processing_metadata = []
             for i, img_path in enumerate(image_paths):
-                upscaled = await self._ai_upscale_platform_image(
+                upscaled, was_upscaled, image_type, target_model = await self._ai_upscale_platform_image_with_metadata(
                     img_path, request_id,
                     "twitter_enable_ai_upscale", "twitter_low_quality_threshold", "twitter_upscayl_model_name"
                 )
+                image_processing_metadata.append((was_upscaled, image_type, target_model))
                 if upscaled != img_path and upscaled.exists():
                     new_image_paths.append(upscaled)
                     for j, mp in enumerate(media_paths):
@@ -275,6 +283,13 @@ class TwitterMixin:
             image_paths = new_image_paths
         elif image_paths:
             logger.info("ℹ️ X 全局 AVIF 压缩未启用，跳过 AVIF 文件生成与发送")
+
+        annotation_text = build_image_processing_annotation_text([
+            format_image_processing_annotation(i + 1, source_path, processed_path, *image_processing_metadata[i])
+            for i, (source_path, processed_path) in enumerate(zip(source_image_paths, image_paths))
+        ])
+        if annotation_text:
+            await event.send(MessageChain([Plain(annotation_text)]))
 
         timing["download"] = time.perf_counter() - download_start
         if not media_components:

@@ -18,6 +18,10 @@ from ..common import (
     get_xhs_image_path,
     get_xhs_video_path,
 )
+from ..common.media import (
+    build_image_processing_annotation_text,
+    format_image_processing_annotation,
+)
 from . import (
     XHS_HEADERS,
     XiaohongshuParseError,
@@ -34,15 +38,6 @@ XHS_PARSE_TIMEOUT_SEC = 30.0
 XHS_PARSE_RETRY_BASE_DELAY_SEC = 1.0
 XHS_PARSE_RETRY_MAX_DELAY_SEC = 8.0
 
-MODEL_DISPLAY_NAMES = {
-    "digital-art-4x": "数字艺术 (digital-art-4x)",
-    "high-fidelity-4x": "高保真 (high-fidelity-4x)",
-    "remacri-4x": "Remacri (remacri-4x)",
-    "ultramix-balanced-4x": "超混合平衡 (ultramix-balanced-4x)",
-    "ultrasharp-4x": "超锐化 (ultrasharp-4x)",
-    "upscayl-lite-4x": "轻量 (upscayl-lite-4x)",
-    "upscayl-standard-4x": "标准 (upscayl-standard-4x)",
-}
 # endregion
 
 
@@ -702,14 +697,9 @@ class XiaohongshuMixin:
                 proc_path, preview_path, was_upscaled, img_type, target_model = await self._post_process_xhs_image(
                     img_path, request_id, index=i+1, total=len(image_paths)
                 )
-                img_label = img_type or "未检测"
-                if was_upscaled:
-                    model_label = MODEL_DISPLAY_NAMES.get(
-                        target_model, target_model or "未记录"
-                    )
-                    upscale_annotations.append(f"  • 图 {i+1}: 🎨 已 AI 升图 [{img_label} | {model_label}]")
-                else:
-                    upscale_annotations.append(f"  • 图 {i+1}: ⚡ 原始画质 [{img_label}]")
+                upscale_annotations.append(format_image_processing_annotation(
+                    i + 1, img_path, proc_path, was_upscaled, img_type, target_model
+                ))
 
                 display_path = preview_path if (preview_path and preview_path.exists()) else proc_path
                 processed_results.append((display_path, proc_path, was_upscaled))
@@ -729,9 +719,10 @@ class XiaohongshuMixin:
             image_paths = [r[0] for r in processed_results]
 
             if upscale_annotations:
-                annotation_text = "📊 图片 AI 升图处理标注：\n" + "\n".join(upscale_annotations)
+                annotation_text = build_image_processing_annotation_text(upscale_annotations)
                 try:
-                    yield event.chain_result([Plain(annotation_text)])
+                    if annotation_text:
+                        yield event.chain_result([Plain(annotation_text)])
                 except Exception:
                     pass
 

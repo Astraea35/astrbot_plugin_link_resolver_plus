@@ -602,9 +602,10 @@ class BaseUtilsMixin:
     async def _monitor_process_percentage(self, proc: asyncio.subprocess.Process, stage_prefix: str) -> None:
         await monitor_process_percentage(proc, stage_prefix, self)
 
-    async def _ai_upscale_platform_image(self, image_path, request_id, enable_flag, threshold_attr, model_attr=None):
+    async def _ai_upscale_platform_image_with_metadata(self, image_path, request_id, enable_flag, threshold_attr, model_attr=None):
+        """Apply AI upscaling and retain metadata for the shared result annotation."""
         if not getattr(self, enable_flag, True):
-            return image_path
+            return image_path, False, "未检测", None
         threshold = getattr(self, threshold_attr, 1080)
         model_setting = getattr(self, model_attr, "自动 (CV特征识别)") if model_attr else "自动 (CV特征识别)"
         try:
@@ -612,7 +613,7 @@ class BaseUtilsMixin:
                 image_path, threshold=threshold, model_setting=model_setting
             )
             if not need_upscale:
-                return image_path
+                return image_path, False, img_type, recommended_model
 
             if getattr(self, "current_task_info", None) is None:
                 self.current_task_info = {
@@ -623,10 +624,17 @@ class BaseUtilsMixin:
             async with self.heavy_task_lock:
                 upscaled_path = await self.upscaler.upscale_image(image_path, request_id, override_model=recommended_model)
                 if upscaled_path != image_path and upscaled_path.exists():
-                    return upscaled_path
+                    return upscaled_path, True, img_type, recommended_model
         except Exception as e:
             logger.warning("⚠️ AI 升图处理异常: %s", str(e))
-        return image_path
+        return image_path, False, "未检测", None
+
+    async def _ai_upscale_platform_image(self, image_path, request_id, enable_flag, threshold_attr, model_attr=None):
+        """Backward-compatible path-only interface for platform handlers."""
+        processed_path, _, _, _ = await self._ai_upscale_platform_image_with_metadata(
+            image_path, request_id, enable_flag, threshold_attr, model_attr
+        )
+        return processed_path
 
     async def _ffmpeg_compress_av1(self, input_path: Path, request_id: str) -> Path | None:
         return await self.encoder.compress_avif(input_path, request_id)
