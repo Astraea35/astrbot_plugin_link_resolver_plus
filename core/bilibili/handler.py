@@ -1178,10 +1178,9 @@ class BilibiliMixin:
                         nodes.nodes.append(
                             Node(uin=sender_uin, content=[Plain(page_text)])
                         )
-                        abs_video_path = str(video_path.resolve())
                         merge_video_component = (
                             await self._prepare_component_for_merge_send(
-                                Video.fromFileSystem(abs_video_path)
+                                await self._video_component_from_path(video_path)
                             )
                         )
                         nodes.nodes.append(
@@ -1321,8 +1320,7 @@ class BilibiliMixin:
 
             try:
                 self._assert_video_file_ready(video_path, source_tag, request_id)
-                abs_video_path = str(video_path.resolve())
-                video_component = Video.fromFileSystem(abs_video_path)
+                video_component = await self._video_component_from_path(video_path)
 
                 if self.bili_merge_send:
                     nodes = Nodes([])

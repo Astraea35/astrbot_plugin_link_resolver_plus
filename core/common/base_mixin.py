@@ -4,8 +4,9 @@ import base64
 import hashlib
 import json
 import re
+import shutil
 import time
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from random import choice
 from urllib.parse import urlparse
 
@@ -432,6 +433,44 @@ class BaseUtilsMixin:
         for thumb_path in thumbnail_paths:
             await asyncio.to_thread(thumb_path.unlink, missing_ok=True)
 
+    async def _prepare_napcat_media_path(self, source_path: Path) -> str:
+        """Copy media to a shared folder and return its path inside the NapCat container."""
+        share_dir = getattr(self, "napcat_media_share_path", "")
+        container_dir = getattr(self, "napcat_media_container_path", "")
+        if not share_dir and not container_dir:
+            return str(source_path.resolve())
+        if not share_dir or not container_dir:
+            raise RuntimeError(
+                "NapCat shared-media settings require both the SMB path and container path"
+            )
+        if not source_path.is_file():
+            raise FileNotFoundError(f"Media file does not exist: {source_path}")
+
+        destination_dir = Path(share_dir)
+        destination = destination_dir / source_path.name
+        temporary = destination.with_suffix(destination.suffix + ".part")
+
+        def _copy() -> None:
+            destination_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source_path, temporary)
+            temporary.replace(destination)
+
+        try:
+            await asyncio.to_thread(_copy)
+        except Exception as exc:
+            raise RuntimeError(
+                f"Failed to copy media to NapCat shared directory {destination_dir}: {exc}"
+            ) from exc
+
+        if destination.stat().st_size != source_path.stat().st_size:
+            raise RuntimeError(f"NapCat shared media copy is incomplete: {destination}")
+
+        return str(PurePosixPath(container_dir) / source_path.name)
+
+    async def _video_component_from_path(self, video_path: Path) -> Comp.Video:
+        file_ref = await self._prepare_napcat_media_path(video_path)
+        return Comp.Video.fromFileSystem(file_ref)
+
     def _get_merge_sender_uin(self, event: AstrMessageEvent) -> str:
         if self.merge_send_as_sender:
             sender_id = event.get_sender_id()
@@ -444,6 +483,11 @@ class BaseUtilsMixin:
             return component
         file_ref = str(getattr(component, "file", "") or "").strip()
         if not file_ref or file_ref.startswith(("http://", "https://", "base64://")):
+            return component
+        container_dir = str(
+            getattr(self, "napcat_media_container_path", "") or ""
+        ).rstrip("/")
+        if container_dir and file_ref.startswith(f"{container_dir}/"):
             return component
         try:
             callback_url = await component.register_to_file_service()

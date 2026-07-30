@@ -200,7 +200,7 @@ class WeiboMixin:
                     result.video_url, request_id
                 )
                 media_paths.append(video_path)
-                media_components.append(Video.fromFileSystem(str(video_path.resolve())))
+                media_components.append(await self._video_component_from_path(video_path))
             except asyncio.CancelledError:
                 raise
             except SizeLimitExceeded:

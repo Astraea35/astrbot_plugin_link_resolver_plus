@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.4.0
+
+- 现在以下视频都会在 AstrBot 下载完成后，复制到：
+- \\192.168.1.34\Docker\NapCat\config\astrbot-media
+- 随后让 NapCat 容器从：
+- /app/napcat/config/astrbot-media
+- 读取并发送：
+- Bilibili，包括多 P 视频
+- 抖音普通视频、动图
+- 小红书视频、Live Photo
+- 微博视频
+- X 视频
+
 ## v1.3.0
 
 - 修复AI升图处理标注中的占位符问题，现在图片类型会明确显示为“二次元(CV)”、“照片(CV)”或“手动指定”，实际升图模型名称如“标准(upscayl-standard-4x)”、“数字艺术(digital-art-4x)”、“超锐化(ultrasharp-4x)”等会准确展示，不再出现unknown或auto回退值；改动涉及小红书handler及标注生成逻辑，重启AstrBot后生效。

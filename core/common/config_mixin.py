@@ -285,6 +285,12 @@ class ConfigMixin:
         self.max_video_size_mb = int(
             self._get_config_value("general_settings.max_video_size_mb", 200)
         )
+        self.napcat_media_share_path = str(
+            self._get_config_value("general_settings.napcat_media_share_path", "")
+        ).strip().strip('"').strip("'")
+        self.napcat_media_container_path = str(
+            self._get_config_value("general_settings.napcat_media_container_path", "")
+        ).strip().strip('"').strip("'")
         self.merge_send_as_sender = bool(
             self._get_config_value("general_settings.merge_send_as_sender", False)
         )

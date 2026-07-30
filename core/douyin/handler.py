@@ -343,7 +343,7 @@ class DouyinMixin:
                     video_path = await self._download_douyin_video(url, request_id)
                     media_paths.append(video_path)
                     media_components.append(
-                        Video.fromFileSystem(str(video_path.resolve()))
+                        await self._video_component_from_path(video_path)
                     )
                     logger.debug(
                         "📥 抖音动图下载成功%s [%d/%d]: size=%.2fMB, 耗时=%.2fs",
@@ -432,7 +432,7 @@ class DouyinMixin:
                     result.video_url, request_id
                 )
                 media_paths.append(video_path)
-                media_components.append(Video.fromFileSystem(str(video_path.resolve())))
+                media_components.append(await self._video_component_from_path(video_path))
                 logger.debug(
                     "📥 抖音视频下载成功%s: size=%.2fMB, 耗时=%.2fs",
                     source_tag,

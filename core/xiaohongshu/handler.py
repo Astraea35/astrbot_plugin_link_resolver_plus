@@ -613,7 +613,7 @@ class XiaohongshuMixin:
                     result.video_url, request_id, referer=result.source_url
                 )
                 media_paths.append(video_path)
-                media_components.append(Video.fromFileSystem(str(video_path.resolve())))
+                media_components.append(await self._video_component_from_path(video_path))
                 cover_url = result.cover_url or (result.image_urls[0] if result.image_urls else None)
                 if cover_url:
                     try:
@@ -676,7 +676,9 @@ class XiaohongshuMixin:
                                 live_url, f"{request_id}_live_{i}", referer=result.source_url
                             )
                             media_paths.append(live_video_path)
-                            media_components.append(Video.fromFileSystem(str(live_video_path.resolve())))
+                            media_components.append(
+                                await self._video_component_from_path(live_video_path)
+                            )
                             logger.info("🎬 成功下载第 %d 张图的 Live Photo 视频: %s", i + 1, live_video_path.name)
                         except Exception as exc:
                             logger.warning("⚠️ 第 %d 张图的 Live Photo 视频下载失败: %s", i + 1, str(exc))
