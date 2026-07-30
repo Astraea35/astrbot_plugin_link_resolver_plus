@@ -252,10 +252,9 @@ class ConfigMixin:
         else:
             self.upscayl_models_path = user_models or DEFAULT_UPSCAYL_MODELS_PATH
 
-        self.ffmpeg_bin_path = str(self._get_config_value("xhs_settings.ffmpeg_bin_path", "ffmpeg")).strip()
-
         # 通用设置
         self.enable_global_ffmpeg_compress = bool(self._get_config_value("general_settings.enable_ffmpeg_compress", True))
+        self.ffmpeg_bin_path = str(self._get_config_value("general_settings.ffmpeg_bin_path", "ffmpeg")).strip()
         self.progress_report_interval = max(1, min(100, int(self._get_config_value("general_settings.progress_report_interval", 1))))
         self.retry_count = max(
             0, int(self._get_config_value("general_settings.retry_count", 3))

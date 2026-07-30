@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.4.5
+
+- 已将 ffmpeg_bin_path 从 xhs_settings 移至 general_settings，配置读取也已改为 general_settings.ffmpeg_bin_path，并更新说明为全平台用途。
+- 自动将 //... 补全为 https://...
+- 依次尝试 masterUrl、url、backupUrl 和 backupUrls
+- 跳过无效视频流，尝试同编码的后续流和其他编码
+
 ## v1.4.4
 
 - 移除小红书专属 AVIF 压缩配置及其加载逻辑。

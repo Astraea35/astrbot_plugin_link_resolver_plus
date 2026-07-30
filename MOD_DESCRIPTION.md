@@ -94,7 +94,7 @@
 │  - 所有中文 logger 输出                                                     │
 │                                                                             │
 │  需要同步的配置字段：                                                       │
-│  - xhs_settings.* (enable_ai_upscale/upscayl_*/enable_ffmpeg_compress等)    │
+│  - xhs_settings.* (enable_ai_upscale/upscayl_* 等)                          │
 │  - general_settings.enable_ffmpeg_compress                                  │
 │  - general_settings.ffmpeg_bin_path                                         │
 │                                                                             │

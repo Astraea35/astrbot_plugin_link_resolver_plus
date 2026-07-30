@@ -1,11 +1,13 @@
 ﻿"""小红书内容提取器 - 基于 astrbot_plugin_parser 参考实现重写"""
 
 import asyncio
+import html
 import json
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import aiohttp
 from astrbot.api import logger
@@ -350,8 +352,9 @@ class XiaohongshuExtractor:
 
         # 1. 直接字段匹配
         live_url = img.get("livePhotoUrl") or img.get("live_photo_url")
-        if live_url and isinstance(live_url, str):
-            return live_url
+        normalized = self._normalize_media_url(live_url)
+        if normalized:
+            return normalized
 
         # 2. 嵌套 stream 节点匹配
         stream = img.get("stream")
@@ -359,9 +362,12 @@ class XiaohongshuExtractor:
             for codec in ("h264", "h265", "av1", "h266"):
                 codec_streams = stream.get(codec)
                 if isinstance(codec_streams, list) and codec_streams:
-                    master_url = codec_streams[0].get("masterUrl") or codec_streams[0].get("url")
-                    if master_url:
-                        return master_url
+                    for item in codec_streams:
+                        if not isinstance(item, dict):
+                            continue
+                        normalized = self._extract_stream_url(item)
+                        if normalized:
+                            return normalized
 
         return None
 
@@ -401,11 +407,40 @@ class XiaohongshuExtractor:
         for codec in ("h265", "h264", "av1", "h266"):
             codec_streams = stream.get(codec)
             if isinstance(codec_streams, list) and codec_streams:
-                master_url = codec_streams[0].get("masterUrl")
-                if master_url:
-                    logger.debug("🎬 小红书视频编码: %s", codec)
-                    return master_url
+                for item in codec_streams:
+                    if not isinstance(item, dict):
+                        continue
+                    media_url = self._extract_stream_url(item)
+                    if media_url:
+                        logger.debug("🎬 小红书视频编码: %s", codec)
+                        return media_url
 
+        return None
+
+    @staticmethod
+    def _extract_stream_url(stream_item: dict[str, Any]) -> str | None:
+        for key in ("masterUrl", "url", "backupUrl"):
+            media_url = XiaohongshuExtractor._normalize_media_url(stream_item.get(key))
+            if media_url:
+                return media_url
+        backup_urls = stream_item.get("backupUrls")
+        if isinstance(backup_urls, list):
+            for value in backup_urls:
+                media_url = XiaohongshuExtractor._normalize_media_url(value)
+                if media_url:
+                    return media_url
+        return None
+
+    @staticmethod
+    def _normalize_media_url(value: object) -> str | None:
+        if not isinstance(value, str):
+            return None
+        media_url = html.unescape(value).strip()
+        if media_url.startswith("//"):
+            media_url = f"https:{media_url}"
+        parsed = urlparse(media_url)
+        if parsed.scheme in ("http", "https") and parsed.netloc:
+            return media_url
         return None
 
 
