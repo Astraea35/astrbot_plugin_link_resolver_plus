@@ -90,17 +90,17 @@
 
 * `enable_auto_download` (bool): 是否自动下载视频，默认 `true`。关闭后收到 B站 链接仅解析不下载，防止与其他总结插件冲突。
 
-### 小红书/全平台 AI 升图配置 (`xhs_settings` / `douyin_settings` / `weibo_settings` / `twitter_settings`)
+### 全平台 AI 升图配置
 
 * `enable_ai_upscale` (bool): 是否开启 AI 超分升图（默认 `true`）。
 * `low_quality_threshold` (int): 低质量分辨率像素阈值（默认 `1080px`）。
-* `upscayl_bin_path` (string): `upscayl-bin.exe` 绝对路径。
-* `upscayl_models_path` (string): Upscayl `models` 模型文件夹路径。
 * `upscayl_double_pass` (bool): 是否启用 Pass1 -> Pass2 双重升图。
 * `upscayl_enable_taa` (bool): 是否启用 TAA 抗锯齿（`-x`）。
 
 ### 编码与全局配置 (`general_settings`)
 
+* `upscayl_bin_path` (string): Upscayl 可执行文件路径，默认 `C:/Program Files/Upscayl/resources/bin/upscayl-bin.exe`。留空或路径不可用时自动使用插件 `resources/bin/upscayl-bin.exe`。
+* `upscayl_models_path` (string): Upscayl 模型目录，默认 `C:/Program Files/Upscayl/resources/models`。留空或路径不可用时自动使用插件 `resources/models`。
 * `enable_ffmpeg_compress` (bool): 是否开启图片全局 AVIF 压缩（默认 `true`）。
 * `ffmpeg_bin_path` (string): `ffmpeg` 可执行文件路径或系统命令。
 * `progress_report_interval` (int): 后台日志进度输出间隔（1%-100%），算力较低时建议设为 `10`。

@@ -18,6 +18,8 @@ from ..xiaohongshu.render import XiaohongshuCardRenderer
 
 SUMMARY_MODE_TEXT = "文字摘要"
 SUMMARY_MODE_CARD = "渲染卡片"
+DEFAULT_UPSCAYL_BIN_PATH = "C:/Program Files/Upscayl/resources/bin/upscayl-bin.exe"
+DEFAULT_UPSCAYL_MODELS_PATH = "C:/Program Files/Upscayl/resources/models"
 
 
 class ConfigMixin:
@@ -221,37 +223,34 @@ class ConfigMixin:
         self.upscayl_enable_taa = bool(self._get_config_value("xhs_settings.upscayl_enable_taa", True))
         self.upscayl_scale = max(1, int(self._get_config_value("xhs_settings.upscayl_scale", 2)))
         
-        # 智能全平台联合匹配 Upscayl 资源路径（优先使用有效自定义配置，消除单平台读取局限）
-        user_bin = (
-            str(self._get_config_value("xhs_settings.upscayl_bin_path", "")) or
-            str(self._get_config_value("douyin_settings.upscayl_bin_path", "")) or
-            str(self._get_config_value("weibo_settings.upscayl_bin_path", "")) or
-            str(self._get_config_value("twitter_settings.upscayl_bin_path", ""))
+        # Upscayl 资源路径统一由通用设置管理；无有效设置时回退到插件 resources 目录。
+        user_bin = str(
+            self._get_config_value(
+                "general_settings.upscayl_bin_path", DEFAULT_UPSCAYL_BIN_PATH
+            )
         ).strip().strip('"').strip("'")
-        
-        user_models = (
-            str(self._get_config_value("xhs_settings.upscayl_models_path", "")) or
-            str(self._get_config_value("douyin_settings.upscayl_models_path", "")) or
-            str(self._get_config_value("weibo_settings.upscayl_models_path", "")) or
-            str(self._get_config_value("twitter_settings.upscayl_models_path", ""))
+        user_models = str(
+            self._get_config_value(
+                "general_settings.upscayl_models_path", DEFAULT_UPSCAYL_MODELS_PATH
+            )
         ).strip().strip('"').strip("'")
 
         builtin_bin = get_default_upscayl_bin_path()
         builtin_models = get_default_upscayl_models_path()
 
-        if user_bin and Path(user_bin).exists():
+        if user_bin and Path(user_bin).is_file():
             self.upscayl_bin_path = user_bin
-        elif builtin_bin.exists():
+        elif builtin_bin.is_file():
             self.upscayl_bin_path = str(builtin_bin.resolve())
         else:
-            self.upscayl_bin_path = user_bin or str(builtin_bin)
+            self.upscayl_bin_path = user_bin or DEFAULT_UPSCAYL_BIN_PATH
 
-        if user_models and Path(user_models).exists():
+        if user_models and Path(user_models).is_dir():
             self.upscayl_models_path = user_models
-        elif builtin_models.exists():
+        elif builtin_models.is_dir():
             self.upscayl_models_path = str(builtin_models.resolve())
         else:
-            self.upscayl_models_path = user_models or str(builtin_models)
+            self.upscayl_models_path = user_models or DEFAULT_UPSCAYL_MODELS_PATH
 
         self.xhs_enable_ffmpeg_compress = bool(self._get_config_value("xhs_settings.enable_ffmpeg_compress", True))
         self.ffmpeg_bin_path = str(self._get_config_value("xhs_settings.ffmpeg_bin_path", "ffmpeg")).strip()
