@@ -16,7 +16,7 @@ from pathlib import Path
 
 from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent, MessageChain
-from astrbot.api.message_components import File, Image, Node, Nodes, Plain, Video
+from astrbot.api.message_components import Image, Node, Nodes, Plain, Video
 
 from ..common import SizeLimitExceeded, get_weibo_image_path, get_weibo_video_path
 from . import (
@@ -191,6 +191,7 @@ class WeiboMixin:
         summary_text = self._build_weibo_summary(result)
         media_components: list[object] = []
         media_paths: list[Path] = []
+        avif_files_to_send: list[Path] = []
         failed_images = 0
 
         download_start = time.perf_counter()
@@ -268,6 +269,8 @@ class WeiboMixin:
                     avif_path, preview_path = await self._convert_to_avif_with_preview(img_path, request_id)
                     if avif_path is not None and avif_path != img_path:
                         new_image_paths.append(avif_path)
+                        if avif_path.exists() and avif_path.suffix.lower() == ".avif":
+                            avif_files_to_send.append(avif_path)
                     else:
                         new_image_paths.append(img_path)
                     for j, mp in enumerate(media_paths):
@@ -280,15 +283,7 @@ class WeiboMixin:
                             if preview_path and preview_path.exists():
                                 media_components[j] = Image.fromFileSystem(str(preview_path.resolve()))
                             elif avif_path and avif_path.exists() and avif_path.suffix.lower() == '.avif':
-                                try:
-                                    sent = await self._send_file_via_api(event, avif_path)
-                                    if sent:
-                                        media_components[j] = None
-                                    else:
-                                        media_components[j] = File.fromFileSystem(str(avif_path.resolve()))
-                                except Exception:
-                                    media_components[j] = File.fromFileSystem(str(avif_path.resolve()))
-                media_components = [c for c in media_components if c is not None]
+                                media_components[j] = Image.fromFileSystem(str(avif_path.resolve()))
                 image_paths = new_image_paths
 
         timing["download"] = time.perf_counter() - download_start
@@ -323,6 +318,13 @@ class WeiboMixin:
                     media_components[0]
                 )
                 await event.send(MessageChain([direct_component]))
+
+            # 合并转发只包含可直接预览的图片；高质量 AVIF 通过文件接口单独发送。
+            for avif_file in avif_files_to_send:
+                try:
+                    await self._send_file_via_api(event, avif_file)
+                except Exception as exc:
+                    logger.warning("⚠️ 微博独立发送 AVIF 文件失败 (%s): %s", avif_file.name, str(exc))
 
             timing["send"] = time.perf_counter() - send_start
 

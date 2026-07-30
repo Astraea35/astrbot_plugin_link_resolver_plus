@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.4.6
+
+- 抖音：此前只发合并转发里的 JPG 预览，未独立发送 AVIF。
+- 微博、X：正常生成 JPG 预览时也会漏发 AVIF，只在预览失败时才尝试上传。
+- 小红书：原本已有合并消息后独立发送 AVIF 的逻辑，无需修改。
+- B站没有走图片 AVIF 后处理链路。
+
 ## v1.4.5
 
 - 已将 ffmpeg_bin_path 从 xhs_settings 移至 general_settings，配置读取也已改为 general_settings.ffmpeg_bin_path，并更新说明为全平台用途。

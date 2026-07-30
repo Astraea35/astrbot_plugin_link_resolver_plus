@@ -290,6 +290,7 @@ class DouyinMixin:
 
         media_components: list[object] = []
         media_paths: list[Path] = []
+        avif_files_to_send: list[Path] = []
         failed_images = 0
         failed_dynamics = 0
 
@@ -407,6 +408,8 @@ class DouyinMixin:
                         avif_path, preview_path = await self._convert_to_avif_with_preview(img_path, request_id)
                         if avif_path is not None and avif_path != img_path:
                             new_image_paths.append(avif_path)
+                            if avif_path.exists() and avif_path.suffix.lower() == ".avif":
+                                avif_files_to_send.append(avif_path)
                         else:
                             new_image_paths.append(img_path)
                         
@@ -542,6 +545,13 @@ class DouyinMixin:
                 media_components[0]
             )
             await event.send(MessageChain([direct_component]))
+
+        # 合并转发只包含可直接预览的图片；高质量 AVIF 通过文件接口单独发送。
+        for avif_file in avif_files_to_send:
+            try:
+                await self._send_file_via_api(event, avif_file)
+            except Exception as exc:
+                logger.warning("⚠️ 抖音独立发送 AVIF 文件失败 (%s): %s", avif_file.name, str(exc))
 
         timing["send"] = time.perf_counter() - send_start
         # endregion
