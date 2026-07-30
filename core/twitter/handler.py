@@ -273,6 +273,8 @@ class TwitterMixin:
                         elif avif_path and avif_path.exists() and avif_path.suffix.lower() == '.avif':
                             media_components[j] = Image.fromFileSystem(str(avif_path.resolve()))
             image_paths = new_image_paths
+        elif image_paths:
+            logger.info("ℹ️ X 全局 AVIF 压缩未启用，跳过 AVIF 文件生成与发送")
 
         timing["download"] = time.perf_counter() - download_start
         if not media_components:
@@ -316,9 +318,12 @@ class TwitterMixin:
                 await event.send(MessageChain([direct_component]))
 
             # 合并转发只包含可直接预览的图片；高质量 AVIF 通过文件接口单独发送。
+            if avif_files_to_send:
+                logger.info("📁 X 准备独立发送 %d 个 AVIF 文件", len(avif_files_to_send))
             for avif_file in avif_files_to_send:
                 try:
-                    await self._send_file_via_api(event, avif_file)
+                    if not await self._send_file_via_api(event, avif_file):
+                        logger.warning("⚠️ X 独立发送 AVIF 文件失败: %s", avif_file.name)
                 except Exception as exc:
                     logger.warning("⚠️ X 独立发送 AVIF 文件失败 (%s): %s", avif_file.name, str(exc))
 

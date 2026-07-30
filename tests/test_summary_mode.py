@@ -14,7 +14,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import ANY, AsyncMock, patch
 
 for candidate in Path(__file__).resolve().parents:
     if (candidate / "data" / "plugins").exists():
@@ -128,6 +128,7 @@ class TestSummaryModeHandlers(unittest.IsolatedAsyncioTestCase):
                 douyin_summary_mode="文字摘要",
                 douyin_render_card=False,
                 douyin_merge_send=False,
+                enable_global_ffmpeg_compress=False,
                 douyin_max_media=99,
                 retry_count=0,
                 max_video_size_mb=200,
@@ -182,6 +183,75 @@ class TestSummaryModeHandlers(unittest.IsolatedAsyncioTestCase):
         self.assertIn("媒体：图片 1 张", first_component.text)
         self.assertIn(f"链接：{original_link}", first_component.text)
         self.assertNotIn("https://www.douyin.com/note/123456789", first_component.text)
+
+    async def test_process_douyin_image_post_with_video_metadata_sends_avif(self):
+        event = DummyEvent()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            image_path = Path(tmpdir) / "img.jpg"
+            preview_path = Path(tmpdir) / "img_preview.jpg"
+            avif_path = Path(tmpdir) / "img_av1.avif"
+            for path in (image_path, preview_path, avif_path):
+                path.write_bytes(b"image")
+
+            plugin = SimpleNamespace(
+                douyin_enabled=True,
+                douyin_enable_ai_upscale=False,
+                enable_global_ffmpeg_compress=True,
+                douyin_summary_mode="文字摘要",
+                douyin_render_card=False,
+                douyin_merge_send=False,
+                douyin_max_media=99,
+                retry_count=0,
+                max_video_size_mb=200,
+                douyin_extractor=SimpleNamespace(
+                    parse=AsyncMock(
+                        return_value=DouyinResult(
+                            title="图文标题",
+                            author="作者甲",
+                            author_avatar=None,
+                            duration=0,
+                            # 部分图文作品的接口响应仍会附带视频元数据。
+                            video_url="https://example.com/metadata.mp4",
+                            cover_url=None,
+                            image_urls=["https://example.com/1.jpg"],
+                            dynamic_urls=[],
+                            source_url="https://www.douyin.com/note/123456789",
+                            likes=None,
+                            comments=None,
+                            item_id="123",
+                        )
+                    )
+                ),
+                _refresh_config=lambda: None,
+                _send_reaction_emoji=AsyncMock(),
+                _download_douyin_image=AsyncMock(return_value=image_path),
+                _download_douyin_video=AsyncMock(),
+                _convert_to_avif_with_preview=AsyncMock(
+                    return_value=(avif_path, preview_path)
+                ),
+                _send_file_via_api=AsyncMock(return_value=True),
+                _render_douyin_card=AsyncMock(),
+                _prepare_component_for_merge_send=AsyncMock(
+                    side_effect=lambda component: component
+                ),
+                _get_merge_sender_uin=lambda event: "10001",
+                cleanup_files=AsyncMock(),
+            )
+            plugin._format_count = DouyinMixin._format_count.__get__(
+                plugin, DouyinMixin
+            )
+            plugin._build_douyin_summary = DouyinMixin._build_douyin_summary.__get__(
+                plugin, DouyinMixin
+            )
+
+            await DouyinMixin._process_douyin(
+                plugin, event, "https://v.douyin.com/demo123/"
+            )
+
+        plugin._convert_to_avif_with_preview.assert_awaited_once_with(
+            image_path, ANY
+        )
+        plugin._send_file_via_api.assert_awaited_once_with(event, avif_path)
 
     async def test_process_xhs_force_unmerge_sends_summary_before_images(self):
         event = DummyEvent()

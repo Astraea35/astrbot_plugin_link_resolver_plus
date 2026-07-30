@@ -402,30 +402,31 @@ class DouyinMixin:
 
             # 4. 后处理：AVIF 压缩与预览
             if getattr(self, "enable_global_ffmpeg_compress", True) and image_paths:
-                if image_paths and not result.video_url:
-                    new_image_paths = []
-                    for i, img_path in enumerate(image_paths):
-                        avif_path, preview_path = await self._convert_to_avif_with_preview(img_path, request_id)
-                        if avif_path is not None and avif_path != img_path:
-                            new_image_paths.append(avif_path)
-                            if avif_path.exists() and avif_path.suffix.lower() == ".avif":
-                                avif_files_to_send.append(avif_path)
-                        else:
-                            new_image_paths.append(img_path)
-                        
-                        for j, mp in enumerate(media_paths):
-                            if str(mp) == str(img_path):
-                                media_paths[j] = new_image_paths[-1]
-                        for j, mc in enumerate(media_components):
-                            # 修复：优先读取 mc.file，其次 mc.path
-                            mc_file = str(getattr(mc, 'file', '') or getattr(mc, 'path', ''))
-                            if isinstance(mc, Image) and mc_file == str(img_path):
-                                if preview_path and preview_path.exists():
-                                    media_components[j] = Image.fromFileSystem(str(preview_path.resolve()))
-                                elif avif_path and avif_path.exists() and avif_path.suffix.lower() == '.avif':
-                                    media_components[j] = Image.fromFileSystem(str(avif_path.resolve()))
-                    media_components = [c for c in media_components if c is not None]
-                    image_paths = new_image_paths
+                new_image_paths = []
+                for i, img_path in enumerate(image_paths):
+                    avif_path, preview_path = await self._convert_to_avif_with_preview(img_path, request_id)
+                    if avif_path is not None and avif_path != img_path:
+                        new_image_paths.append(avif_path)
+                        if avif_path.exists() and avif_path.suffix.lower() == ".avif":
+                            avif_files_to_send.append(avif_path)
+                    else:
+                        new_image_paths.append(img_path)
+
+                    for j, mp in enumerate(media_paths):
+                        if str(mp) == str(img_path):
+                            media_paths[j] = new_image_paths[-1]
+                    for j, mc in enumerate(media_components):
+                        # 修复：优先读取 mc.file，其次 mc.path
+                        mc_file = str(getattr(mc, 'file', '') or getattr(mc, 'path', ''))
+                        if isinstance(mc, Image) and mc_file == str(img_path):
+                            if preview_path and preview_path.exists():
+                                media_components[j] = Image.fromFileSystem(str(preview_path.resolve()))
+                            elif avif_path and avif_path.exists() and avif_path.suffix.lower() == '.avif':
+                                media_components[j] = Image.fromFileSystem(str(avif_path.resolve()))
+                media_components = [c for c in media_components if c is not None]
+                image_paths = new_image_paths
+            elif image_paths:
+                logger.info("ℹ️ 抖音全局 AVIF 压缩未启用，跳过 AVIF 文件生成与发送")
 
         elif result.video_url:
             logger.debug("📥 抖音视频下载开始%s...", source_tag)
@@ -547,9 +548,12 @@ class DouyinMixin:
             await event.send(MessageChain([direct_component]))
 
         # 合并转发只包含可直接预览的图片；高质量 AVIF 通过文件接口单独发送。
+        if avif_files_to_send:
+            logger.info("📁 抖音准备独立发送 %d 个 AVIF 文件", len(avif_files_to_send))
         for avif_file in avif_files_to_send:
             try:
-                await self._send_file_via_api(event, avif_file)
+                if not await self._send_file_via_api(event, avif_file):
+                    logger.warning("⚠️ 抖音独立发送 AVIF 文件失败: %s", avif_file.name)
             except Exception as exc:
                 logger.warning("⚠️ 抖音独立发送 AVIF 文件失败 (%s): %s", avif_file.name, str(exc))
 
