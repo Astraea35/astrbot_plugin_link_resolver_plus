@@ -86,7 +86,7 @@ class LinkResolverPlugin(
     @filter.regex(BILI_MESSAGE_PATTERN, priority=10)
     async def handle_bili_video(self, event: AstrMessageEvent):
         self._refresh_config()
-        if self._has_json_component(event) or not self._is_group_allowed(event):
+        if self._has_json_component(event) or not self._is_message_allowed(event):
             return
         if not self.bili_enable_auto_download:
             logger.info("⏭️ B站自动下载已关闭，跳过处理")
@@ -101,7 +101,7 @@ class LinkResolverPlugin(
     @filter.regex(DOUYIN_MESSAGE_PATTERN, priority=10)
     async def handle_douyin(self, event: AstrMessageEvent):
         self._refresh_config()
-        if self._has_json_component(event) or not self._is_group_allowed(event):
+        if self._has_json_component(event) or not self._is_message_allowed(event):
             return
         notify_id = await self._send_notify(event, "⏳ 正在解析 抖音 媒体，请稍候...")
         try:
@@ -113,7 +113,7 @@ class LinkResolverPlugin(
     @filter.regex(XHS_MESSAGE_PATTERN, priority=10)
     async def handle_xhs(self, event: AstrMessageEvent):
         self._refresh_config()
-        if self._has_json_component(event) or not self._is_group_allowed(event):
+        if self._has_json_component(event) or not self._is_message_allowed(event):
             return
         notify_id = await self._send_notify(event, "⏳ 正在解析 小红书 内容，请稍候...")
         try:
@@ -126,7 +126,7 @@ class LinkResolverPlugin(
     @filter.regex(WEIBO_MESSAGE_PATTERN, priority=10)
     async def handle_weibo(self, event: AstrMessageEvent):
         self._refresh_config()
-        if self._has_json_component(event) or not self._is_group_allowed(event):
+        if self._has_json_component(event) or not self._is_message_allowed(event):
             return
         self._register_parse_task("weibo", event)
         await WeiboMixin.handle_weibo(self, event)
@@ -134,18 +134,17 @@ class LinkResolverPlugin(
     @filter.regex(TWITTER_MESSAGE_PATTERN, priority=10)
     async def handle_twitter(self, event: AstrMessageEvent):
         self._refresh_config()
-        if self._has_json_component(event) or not self._is_group_allowed(event):
+        if self._has_json_component(event) or not self._is_message_allowed(event):
             return
         self._register_parse_task("twitter", event)
         await TwitterMixin.handle_twitter(self, event)
 
     @filter.regex(r".*")
     async def handle_json_card(self, event: AstrMessageEvent):
-        if self._is_self_message(event) or not self._is_group_allowed(event):
-            return
-
-        # 核心修改：确保处理卡片链接时也能实时刷新获取最新配置
+        # Ensure both group and private filters use the latest configuration.
         self._refresh_config()
+        if self._is_self_message(event) or not self._is_message_allowed(event):
+            return
 
         links: list[str] = []
         has_json_component = False

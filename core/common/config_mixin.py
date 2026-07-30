@@ -308,6 +308,15 @@ class ConfigMixin:
             str(item).strip() for item in _gf_list if str(item).strip()
         ] if isinstance(_gf_list, list) else []
 
+        _pf_mode = str(self._get_config_value("private_filter.mode", "黑名单")).strip()
+        self.private_filter_mode = (
+            _pf_mode if _pf_mode in ("黑名单", "白名单") else "黑名单"
+        )
+        _pf_list = self._get_config_value("private_filter.user_list", [])
+        self.private_filter_list = [
+            str(item).strip() for item in _pf_list if str(item).strip()
+        ] if isinstance(_pf_list, list) else []
+
         alias = self._normalize_quality_alias(self.quality_label)
         if alias == "HDR":
             self.allow_hdr = True

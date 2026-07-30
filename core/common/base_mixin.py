@@ -287,9 +287,32 @@ class BaseUtilsMixin:
         if not group_id:
             return True
         gid = str(group_id)
-        if self.group_filter_mode == "白名单":
-            return gid in self.group_filter_list
-        return gid not in self.group_filter_list
+        if getattr(self, "group_filter_mode", "黑名单") == "白名单":
+            return gid in getattr(self, "group_filter_list", [])
+        return gid not in getattr(self, "group_filter_list", [])
+
+    def _is_private_allowed(self, event: AstrMessageEvent) -> bool:
+        """Return whether a private message sender passes the configured filter."""
+        try:
+            sender_id = event.get_sender_id()
+        except Exception:
+            sender_id = None
+        if not sender_id:
+            return getattr(self, "private_filter_mode", "黑名单") != "白名单"
+        uid = str(sender_id)
+        if getattr(self, "private_filter_mode", "黑名单") == "白名单":
+            return uid in getattr(self, "private_filter_list", [])
+        return uid not in getattr(self, "private_filter_list", [])
+
+    def _is_message_allowed(self, event: AstrMessageEvent) -> bool:
+        """Apply group filtering to groups and private filtering to direct messages."""
+        try:
+            is_group_message = bool(event.get_group_id())
+        except Exception:
+            is_group_message = False
+        if is_group_message:
+            return self._is_group_allowed(event)
+        return self._is_private_allowed(event)
 
     def _extract_reaction_message_id(self, event: AstrMessageEvent) -> int | None:
         raw = getattr(event.message_obj, "raw_message", None)

@@ -609,5 +609,28 @@
                 "default": []
             }
         }
+    },
+    "private_filter": {
+        "description": "私聊过滤(黑/白名单)",
+        "hint": "默认黑名单模式且列表为空=所有私聊都放行。",
+        "type": "object",
+        "items": {
+            "mode": {
+                "description": "过滤模式",
+                "type": "string",
+                "hint": "黑名单:列表内的用户禁用解析;白名单:仅列表内的用户启用解析。",
+                "default": "黑名单",
+                "options": [
+                    "黑名单",
+                    "白名单"
+                ]
+            },
+            "user_list": {
+                "description": "用户 QQ 号列表",
+                "type": "list",
+                "hint": "私聊用户的 QQ 号(纯数字字符串)。例如: 123456789。",
+                "default": []
+            }
+        }
     }
 }
