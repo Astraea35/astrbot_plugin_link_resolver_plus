@@ -637,11 +637,14 @@ class BaseUtilsMixin:
         return processed_path
 
     async def _ffmpeg_compress_av1(self, input_path: Path, request_id: str) -> Path | None:
-        return await self.encoder.compress_avif(input_path, request_id)
+        async with self.heavy_task_lock:
+            return await self.encoder.compress_avif(input_path, request_id)
 
     async def _generate_jpg_preview(self, image_path: Path, request_id: str) -> Path | None:
-        return await self.encoder.generate_jpg_preview(image_path, request_id)
+        async with self.heavy_task_lock:
+            return await self.encoder.generate_jpg_preview(image_path, request_id)
 
     async def _convert_to_avif_with_preview(self, image_path: Path, request_id: str) -> tuple[Path | None, Path | None]:
-        return await self.encoder.convert_to_avif_with_preview(image_path, request_id)
+        async with self.heavy_task_lock:
+            return await self.encoder.convert_to_avif_with_preview(image_path, request_id)
     # endregion

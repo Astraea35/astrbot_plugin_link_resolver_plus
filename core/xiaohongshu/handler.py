@@ -496,7 +496,7 @@ class XiaohongshuMixin:
             if task_info is not None:
                 task_info["stage"] = "🗜️ FFmpeg AV1 压缩中"
                 task_info["percent"] = "0.0%"
-            avif_path, jpg_preview = await self.encoder.convert_to_avif_with_preview(current_path, request_id)
+            avif_path, jpg_preview = await self._convert_to_avif_with_preview(current_path, request_id)
             if avif_path is not None and avif_path != current_path:
                 current_path = avif_path
             if jpg_preview is not None:

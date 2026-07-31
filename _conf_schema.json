@@ -1,4 +1,37 @@
 {
+    "image_tool_settings": {
+        "description": "Standalone image tool settings",
+        "type": "object",
+        "items": {
+            "enabled": {
+                "description": "Enable /upscale and /avif commands",
+                "type": "bool",
+                "default": true
+            },
+            "model_name": {
+                "description": "Model used by the standalone /upscale command",
+                "type": "string",
+                "default": "自动 (CV特征识别)",
+                "options": [
+                    "自动 (CV特征识别)",
+                    "二次元 (digital-art-4x)",
+                    "高保真 (high-fidelity-4x)",
+                    "Remacri (remacri-4x)",
+                    "超混合平衡 (ultramix-balanced-4x)",
+                    "超锐化 (ultrasharp-4x)",
+                    "轻量 (upscayl-lite-4x)",
+                    "标准 (upscayl-standard-4x)"
+                ]
+            },
+            "max_image_bytes": {
+                "description": "Maximum downloaded image size in bytes",
+                "type": "int",
+                "default": 52428800,
+                "min": 1048576,
+                "max": 524288000
+            }
+        }
+    },
     "enable_platforms": {
         "description": "启用的平台",
         "hint": "勾选要启用解析的平台。",

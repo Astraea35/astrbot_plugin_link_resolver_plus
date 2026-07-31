@@ -15,6 +15,7 @@ from .core.common.base_mixin import BaseUtilsMixin
 from .core.common.commands_mixin import CommandsMixin
 from .core.common.font_manager import install_managed_fonts
 from .core.common.media import UpscaylUpscaler, MediaEncoder
+from .core.common.image_tool_mixin import ImageToolMixin
 from .core.douyin import DOUYIN_MESSAGE_PATTERN, DouyinExtractor
 from .core.douyin.handler import DouyinMixin
 from .core.twitter import TWITTER_MESSAGE_PATTERN, TwitterExtractor
@@ -39,6 +40,7 @@ class LinkResolverPlugin(
     ConfigMixin,
     BaseUtilsMixin,
     CommandsMixin,
+    ImageToolMixin,
     BilibiliMixin,
     DouyinMixin,
     XiaohongshuMixin,

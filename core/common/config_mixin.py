@@ -222,6 +222,10 @@ class ConfigMixin:
         self.upscayl_double_pass = bool(self._get_config_value("xhs_settings.upscayl_double_pass", True))
         self.upscayl_enable_taa = bool(self._get_config_value("xhs_settings.upscayl_enable_taa", True))
         self.upscayl_scale = max(1, int(self._get_config_value("xhs_settings.upscayl_scale", 2)))
+        self.image_tool_enabled = bool(self._get_config_value("image_tool_settings.enabled", True))
+        self.image_tool_model_name = str(
+            self._get_config_value("image_tool_settings.model_name", self.upscayl_model_name)
+        ).strip()
         
         # Upscayl 资源路径统一由通用设置管理；无有效设置时回退到插件 resources 目录。
         user_bin = str(
