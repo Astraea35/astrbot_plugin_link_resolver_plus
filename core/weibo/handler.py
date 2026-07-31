@@ -19,6 +19,7 @@ from astrbot.api.event import AstrMessageEvent, MessageChain
 from astrbot.api.message_components import Image, Node, Nodes, Plain, Video
 
 from ..common import SizeLimitExceeded, get_weibo_image_path, get_weibo_video_path
+from ..common.base_mixin import BaseUtilsMixin
 from ..common.media import (
     build_image_processing_annotation_text,
     format_image_processing_annotation,
@@ -261,56 +262,28 @@ class WeiboMixin:
                         },
                     )
 
-            # 2. 后处理：AI 升图
-            if getattr(self, "weibo_enable_ai_upscale", True) and image_urls and image_paths:
-                logger.info("🎨 微博图片 AI 升图检测开始...")
-                new_image_paths = []
-                image_processing_metadata = []
-                for i, img_path in enumerate(image_paths):
-                    upscaled, was_upscaled, image_type, target_model = await self._ai_upscale_platform_image_with_metadata(
-                        img_path, request_id,
-                        "weibo_enable_ai_upscale", "weibo_low_quality_threshold", "weibo_upscayl_model_name"
+            # 2. 统一图片后处理：按平台配置决定是否升图和生成预览。
+            if image_paths:
+                if getattr(self, "weibo_enable_ai_upscale", True):
+                    logger.info("🎨 微博图片 AI 升图检测开始...")
+                image_paths, image_processing_metadata, avif_files = (
+                    await BaseUtilsMixin._process_image_collection(
+                        self,
+                        image_paths,
+                        media_paths,
+                        media_components,
+                        request_id,
+                        auto_upscale=(
+                            "weibo_enable_ai_upscale",
+                            "weibo_low_quality_threshold",
+                            "weibo_upscayl_model_name",
+                        ),
+                        compress_avif=getattr(self, "enable_global_ffmpeg_compress", True),
                     )
-                    image_processing_metadata.append((was_upscaled, image_type, target_model, upscaled if was_upscaled else None))
-                    if upscaled != img_path and upscaled.exists():
-                        new_image_paths.append(upscaled)
-                        for j, mp in enumerate(media_paths):
-                            if str(mp) == str(img_path):
-                                media_paths[j] = upscaled
-                        for j, mc in enumerate(media_components):
-                            # 兼容 AstrBot 的 mc.file 属性（优先），其次 mc.path
-                            mc_file = str(getattr(mc, 'file', '') or getattr(mc, 'path', ''))
-                            if isinstance(mc, Image) and mc_file == str(img_path):
-                                media_components[j] = Image.fromFileSystem(str(upscaled.resolve()))
-                    else:
-                        new_image_paths.append(img_path)
-                image_paths = new_image_paths
-
-            # 3. 后处理：AVIF 压缩与预览
-            if getattr(self, "enable_global_ffmpeg_compress", True) and image_paths:
-                new_image_paths = []
-                for i, img_path in enumerate(image_paths):
-                    avif_path, preview_path = await self._convert_to_avif_with_preview(img_path, request_id)
-                    if avif_path is not None and avif_path != img_path:
-                        new_image_paths.append(avif_path)
-                        if avif_path.exists() and avif_path.suffix.lower() == ".avif":
-                            avif_files_to_send.append(avif_path)
-                    else:
-                        new_image_paths.append(img_path)
-                    for j, mp in enumerate(media_paths):
-                        if str(mp) == str(img_path):
-                            media_paths[j] = new_image_paths[-1]
-                    for j, mc in enumerate(media_components):
-                        # 兼容 AstrBot 的 mc.file 属性（优先），其次 mc.path
-                        mc_file = str(getattr(mc, 'file', '') or getattr(mc, 'path', ''))
-                        if isinstance(mc, Image) and mc_file == str(img_path):
-                            if preview_path and preview_path.exists():
-                                media_components[j] = Image.fromFileSystem(str(preview_path.resolve()))
-                            elif avif_path and avif_path.exists() and avif_path.suffix.lower() == '.avif':
-                                media_components[j] = Image.fromFileSystem(str(avif_path.resolve()))
-                image_paths = new_image_paths
-            elif image_paths:
-                logger.info("ℹ️ 微博全局 AVIF 压缩未启用，跳过 AVIF 文件生成与发送")
+                )
+                avif_files_to_send.extend(avif_files)
+                if not getattr(self, "enable_global_ffmpeg_compress", True):
+                    logger.info("ℹ️ 微博全局 AVIF 压缩未启用，跳过 AVIF 文件生成与发送")
 
             annotation_text = build_image_processing_annotation_text([
                 format_image_processing_annotation(i + 1, source_path, processed_path, *image_processing_metadata[i])

@@ -198,7 +198,28 @@ class ImageToolMixin:
         acquired = False
         task_info = None
         try:
+            # Keep /avif visible while its source image is being downloaded, just
+            # like a platform task is visible from the start of its pipeline.
+            if getattr(self, "current_task_info", None) is None:
+                task_info = {
+                    "title": "图片工具",
+                    "user": str(event.get_sender_name() or event.get_sender_id()),
+                    "current_img": 1,
+                    "total_img": 1,
+                    "stage": "下载图片",
+                    "percent": "0.0%",
+                    "start_time": time.time(),
+                }
+                self.current_task_info = task_info
+
+            download_start = time.perf_counter()
+            logger.info("📥 图片工具下载开始 [1/1]")
             input_path = await self._download_tool_image(url)
+            logger.info(
+                "📥 图片工具下载成功 [1/1]: size=%.1fKB, 耗时=%.2fs",
+                input_path.stat().st_size / 1024,
+                time.perf_counter() - download_start,
+            )
             await self._prepare_image_metadata(
                 input_path,
                 {
@@ -211,16 +232,20 @@ class ImageToolMixin:
             async with self.heavy_task_lock:
                 acquired = True
                 self.image_tool_waiting = max(0, self.image_tool_waiting - 1)
-                task_info = {
-                    "title": input_path.name,
-                    "user": str(event.get_sender_name() or event.get_sender_id()),
-                    "current_img": 1,
-                    "total_img": 1,
-                    "stage": "准备图片处理",
-                    "percent": "0.0%",
-                    "start_time": time.time(),
-                }
-                self.current_task_info = task_info
+                if task_info is None or getattr(self, "current_task_info", None) is not task_info:
+                    task_info = {
+                        "title": input_path.name,
+                        "user": str(event.get_sender_name() or event.get_sender_id()),
+                        "current_img": 1,
+                        "total_img": 1,
+                        "stage": "准备图片处理",
+                        "percent": "0.0%",
+                        "start_time": time.time(),
+                    }
+                    self.current_task_info = task_info
+                else:
+                    task_info["title"] = input_path.name
+                    task_info["stage"] = "准备图片处理"
 
                 result_path = input_path
                 was_upscaled = False
@@ -232,32 +257,23 @@ class ImageToolMixin:
                         input_path, argument
                     )
                     target_model = model
-                    task_info["stage"] = f"AI 升图处理中 ({model})"
-                    candidate_path = await self.upscaler.upscale_image(
-                        input_path,
-                        f"image-tool-{input_path.stem}-{model}",
-                        override_model=model,
-                    )
-                    result_path = candidate_path
-                    if candidate_path != input_path and candidate_path.exists():
-                        await self._propagate_image_metadata(
-                            input_path,
-                            candidate_path,
-                            {
-                                "operation": "ai_upscale",
-                                "model": model,
-                                "scale": getattr(self, "upscayl_scale", None),
-                                "double_pass": getattr(self, "upscayl_double_pass", None),
-                                "taa": getattr(self, "upscayl_enable_taa", None),
-                            },
-                        )
-                        was_upscaled = True
-                        upscaled_path = candidate_path
 
-                task_info["stage"] = "AVIF 转码处理中"
-                avif_path = await self.encoder.compress_avif(
-                    result_path, f"image-tool-{input_path.stem}"
+                (
+                    result_path,
+                    _preview_path,
+                    was_upscaled,
+                    image_type,
+                    target_model,
+                    upscaled_path,
+                ) = await self._process_image_file(
+                    input_path,
+                    f"image-tool-{input_path.stem}",
+                    force_upscale_model=target_model,
+                    force_upscale_type=image_type,
+                    generate_preview=False,
+                    manage_lock=False,
                 )
+                avif_path = result_path
                 if not avif_path:
                     yield event.plain_result("AVIF 转码失败，请检查 FFmpeg 配置。")
                     return

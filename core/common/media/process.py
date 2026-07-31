@@ -26,79 +26,108 @@ async def monitor_process_percentage(
 
     interval = max(1, min(100, int(getattr(plugin_instance, "progress_report_interval", 1))))
     last_logged_pct = -999.0
-    last_heartbeat_sec = 0
     has_percentage = False  # 是否检测到百分比信号
+    heartbeat_stop = asyncio.Event()
 
-    buffer = ""
-
-    while True:
+    async def _heartbeat() -> None:
+        """Keep elapsed-time logs independent from the child-process output rate."""
+        last_heartbeat_sec = 0
         try:
-            # 1 秒超时读流，用于捕获输出或触发无百分比时的秒级心跳
-            chunk_bytes = await asyncio.wait_for(stream.read(256), timeout=1.0)
-            if not chunk_bytes:
-                break
-            buffer += chunk_bytes.decode('utf-8', errors='ignore')
+            while not heartbeat_stop.is_set():
+                try:
+                    await asyncio.wait_for(heartbeat_stop.wait(), timeout=1.0)
+                    continue
+                except asyncio.TimeoutError:
+                    pass
 
-            # 拆分 \r 与 \n 换行符
-            while '\r' in buffer or '\n' in buffer:
-                pos_r = buffer.find('\r')
-                pos_n = buffer.find('\n')
-                if pos_r != -1 and (pos_n == -1 or pos_r < pos_n):
-                    text = buffer[:pos_r]
-                    buffer = buffer[pos_r + 1:]
-                else:
-                    text = buffer[:pos_n]
-                    buffer = buffer[pos_n + 1:]
-
-                if not text.strip():
+                if has_percentage or proc.returncode is not None:
                     continue
 
-                pct_val = None
+                elapsed_sec = int(time.time() - start_time)
+                if elapsed_sec < last_heartbeat_sec + 2:
+                    continue
 
-                # 1. 尝试匹配百分比 (如 Upscayl)
-                match_pct = percent_pattern.search(text)
-                if match_pct:
-                    try:
-                        pct_val = float(match_pct.group(1))
-                    except ValueError:
-                        pass
+                last_heartbeat_sec = elapsed_sec
+                task_info = getattr(plugin_instance, "current_task_info", None)
+                if task_info is not None:
+                    task_info["stage"] = stage_prefix
+                    task_info["percent"] = f"已处理 {elapsed_sec}s"
+                    logger.info(
+                        "%s [%s] 已耗时 %ds",
+                        stage_prefix,
+                        task_info.get("current_img", "?"),
+                        elapsed_sec,
+                    )
+        except asyncio.CancelledError:
+            raise
 
-                # 2. 尝试匹配视频 FFmpeg time
-                if pct_val is None:
-                    match_time = ffmpeg_time_pattern.search(text)
-                    if match_time and total_duration_sec and total_duration_sec > 0:
+    buffer = ""
+    heartbeat_task = asyncio.create_task(_heartbeat())
+
+    try:
+        while True:
+            try:
+                # 1 秒超时读流；elapsed-time reporting runs independently.
+                chunk_bytes = await asyncio.wait_for(stream.read(256), timeout=1.0)
+                if not chunk_bytes:
+                    break
+                buffer += chunk_bytes.decode('utf-8', errors='ignore')
+
+                # 拆分 \r 与 \n 换行符
+                while '\r' in buffer or '\n' in buffer:
+                    pos_r = buffer.find('\r')
+                    pos_n = buffer.find('\n')
+                    if pos_r != -1 and (pos_n == -1 or pos_r < pos_n):
+                        text = buffer[:pos_r]
+                        buffer = buffer[pos_r + 1:]
+                    else:
+                        text = buffer[:pos_n]
+                        buffer = buffer[pos_n + 1:]
+
+                    if not text.strip():
+                        continue
+
+                    pct_val = None
+
+                    # 1. 尝试匹配百分比 (如 Upscayl)
+                    match_pct = percent_pattern.search(text)
+                    if match_pct:
                         try:
-                            h, m, s = float(match_time.group(1)), float(match_time.group(2)), float(match_time.group(3))
-                            curr_sec = h * 3600 + m * 60 + s
-                            pct_val = min(100.0, (curr_sec / total_duration_sec) * 100.0)
+                            pct_val = float(match_pct.group(1))
                         except ValueError:
                             pass
 
-                task_info = getattr(plugin_instance, "current_task_info", None)
+                    # 2. 尝试匹配视频 FFmpeg time
+                    if pct_val is None:
+                        match_time = ffmpeg_time_pattern.search(text)
+                        if match_time and total_duration_sec and total_duration_sec > 0:
+                            try:
+                                h, m, s = float(match_time.group(1)), float(match_time.group(2)), float(match_time.group(3))
+                                curr_sec = h * 3600 + m * 60 + s
+                                pct_val = min(100.0, (curr_sec / total_duration_sec) * 100.0)
+                            except ValueError:
+                                pass
 
-                # 🚀 分支 A：带百分比模式 (AI 生图 / 视频转码)
-                if pct_val is not None:
-                    has_percentage = True  # 标记当前任务有百分比，完全屏蔽纯秒数打点
-                    elapsed_sec = int(time.time() - start_time)
-                    if task_info is not None:
-                        task_info["stage"] = stage_prefix
-                        task_info["percent"] = f"{pct_val:.1f}% ({elapsed_sec}s)"
-                        
-                        if abs(pct_val - last_logged_pct) >= interval or pct_val == 100.0 or last_logged_pct < 0:
-                            logger.info("%s [%s] %.1f%% (已耗时 %ds)", stage_prefix, task_info.get("current_img", "?"), pct_val, elapsed_sec)
-                            last_logged_pct = pct_val
-
-        except asyncio.TimeoutError:
-            # 🚀 分支 B：纯时间心跳 (仅在没有百分比的 FFmpeg 单图压制时触发)
-            if not has_percentage:
-                elapsed_sec = int(time.time() - start_time)
-                if elapsed_sec >= last_heartbeat_sec + 2 and proc.returncode is None:
-                    last_heartbeat_sec = elapsed_sec
                     task_info = getattr(plugin_instance, "current_task_info", None)
-                    if task_info is not None:
-                        task_info["stage"] = stage_prefix
-                        task_info["percent"] = f"已处理 {elapsed_sec}s"
-                        logger.info("%s [%s] 已耗时 %ds", stage_prefix, task_info.get("current_img", "?"), elapsed_sec)
+
+                    # 🚀 分支 A：带百分比模式 (AI 生图 / 视频转码)
+                    if pct_val is not None:
+                        has_percentage = True  # 标记当前任务有百分比，完全屏蔽纯秒数打点
+                        elapsed_sec = int(time.time() - start_time)
+                        if task_info is not None:
+                            task_info["stage"] = stage_prefix
+                            task_info["percent"] = f"{pct_val:.1f}% ({elapsed_sec}s)"
+
+                            if abs(pct_val - last_logged_pct) >= interval or pct_val == 100.0 or last_logged_pct < 0:
+                                logger.info("%s [%s] %.1f%% (已耗时 %ds)", stage_prefix, task_info.get("current_img", "?"), pct_val, elapsed_sec)
+                                last_logged_pct = pct_val
+
+            except asyncio.TimeoutError:
+                # The independent heartbeat task handles elapsed-time reporting.
+                continue
+    finally:
+        heartbeat_stop.set()
+        await heartbeat_task
 
     await proc.wait()
     if proc.returncode != 0:

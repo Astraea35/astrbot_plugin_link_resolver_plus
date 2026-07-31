@@ -673,6 +673,173 @@ class BaseUtilsMixin:
         )
         return processed_path
 
+    async def _process_image_file(
+        self,
+        image_path: Path,
+        request_id: str,
+        *,
+        auto_upscale: tuple[str, str, str] | None = None,
+        force_upscale_model: str | None = None,
+        force_upscale_type: str = "未检测",
+        compress_avif: bool = True,
+        generate_preview: bool = True,
+        manage_lock: bool = True,
+    ) -> tuple[Path | None, Path | None, bool, str, str | None, Path | None]:
+        """Run the shared image pipeline while keeping caller-specific choices explicit.
+
+        ``auto_upscale`` is used by platform handlers and contains the enable,
+        threshold, and model attribute names. ``force_upscale_model`` is used by
+        manual commands. AVIF preview generation is optional for file-only tools.
+        """
+        current_path = image_path
+        preview_path: Path | None = None
+        was_upscaled = False
+        image_type = force_upscale_type
+        target_model = force_upscale_model
+        upscaled_path: Path | None = None
+
+        if force_upscale_model is not None:
+            task_info = getattr(self, "current_task_info", None)
+            if task_info is not None:
+                task_info["stage"] = f"AI 升图处理中 ({force_upscale_model})"
+                task_info["percent"] = "0.0%"
+
+            async def _run_forced_upscale() -> None:
+                nonlocal current_path, upscaled_path, was_upscaled
+                candidate_path = await self.upscaler.upscale_image(
+                    current_path,
+                    request_id,
+                    override_model=force_upscale_model,
+                )
+                if candidate_path != current_path and candidate_path.exists():
+                    await self._propagate_image_metadata(
+                        current_path,
+                        candidate_path,
+                        {
+                            "operation": "ai_upscale",
+                            "model": force_upscale_model,
+                            "scale": getattr(self, "upscayl_scale", None),
+                            "double_pass": getattr(self, "upscayl_double_pass", None),
+                            "taa": getattr(self, "upscayl_enable_taa", None),
+                        },
+                    )
+                    current_path = candidate_path
+                    upscaled_path = candidate_path
+                    was_upscaled = True
+
+            if manage_lock:
+                async with self.heavy_task_lock:
+                    await _run_forced_upscale()
+            else:
+                await _run_forced_upscale()
+        elif auto_upscale is not None:
+            enable_attr, threshold_attr, model_attr = auto_upscale
+            if getattr(self, enable_attr, True):
+                (
+                    current_path,
+                    was_upscaled,
+                    image_type,
+                    target_model,
+                ) = await self._ai_upscale_platform_image_with_metadata(
+                    current_path,
+                    request_id,
+                    enable_attr,
+                    threshold_attr,
+                    model_attr,
+                )
+                if was_upscaled:
+                    upscaled_path = current_path
+
+        if compress_avif:
+            task_info = getattr(self, "current_task_info", None)
+            if task_info is not None:
+                task_info["stage"] = "AVIF 转码处理中"
+                task_info["percent"] = "0.0%"
+
+            if generate_preview:
+                if manage_lock:
+                    avif_path, preview_path = await self._convert_to_avif_with_preview(
+                        current_path, request_id
+                    )
+                else:
+                    avif_path, preview_path = await self.encoder.convert_to_avif_with_preview(
+                        current_path, request_id
+                    )
+            else:
+                if manage_lock:
+                    avif_path = await self._ffmpeg_compress_av1(current_path, request_id)
+                else:
+                    avif_path = await self.encoder.compress_avif(current_path, request_id)
+
+            if avif_path is not None and avif_path != current_path:
+                current_path = avif_path
+        else:
+            preview_path = current_path
+
+        return (
+            current_path,
+            preview_path,
+            was_upscaled,
+            image_type,
+            target_model,
+            upscaled_path,
+        )
+
+    async def _process_image_collection(
+        self,
+        image_paths: list[Path],
+        media_paths: list[Path],
+        media_components: list[object],
+        request_id: str,
+        *,
+        auto_upscale: tuple[str, str, str] | None = None,
+        compress_avif: bool = True,
+    ) -> tuple[list[Path], list[tuple[bool, str, str | None, Path | None]], list[Path]]:
+        """Process a platform image collection and update its message components."""
+        processed_paths: list[Path] = []
+        annotations: list[tuple[bool, str, str | None, Path | None]] = []
+        avif_files: list[Path] = []
+
+        for image_path in image_paths:
+            (
+                processed_path,
+                preview_path,
+                was_upscaled,
+                image_type,
+                target_model,
+                upscaled_path,
+            ) = await self._process_image_file(
+                image_path,
+                request_id,
+                auto_upscale=auto_upscale,
+                compress_avif=compress_avif,
+            )
+            processed_path = processed_path or image_path
+            processed_paths.append(processed_path)
+            annotations.append((was_upscaled, image_type, target_model, upscaled_path))
+
+            if processed_path != image_path:
+                for index, media_path in enumerate(media_paths):
+                    if str(media_path) == str(image_path):
+                        media_paths[index] = processed_path
+
+            display_path = preview_path or processed_path
+            if display_path != image_path:
+                for index, component in enumerate(media_components):
+                    component_path = str(
+                        getattr(component, "file", "") or getattr(component, "path", "")
+                    )
+                    if isinstance(component, Comp.Image) and component_path == str(image_path):
+                        media_components[index] = Comp.Image.fromFileSystem(
+                            str(display_path.resolve())
+                        )
+
+            if processed_path.suffix.lower() == ".avif" and processed_path != image_path:
+                avif_files.append(processed_path)
+
+        media_components[:] = [component for component in media_components if component is not None]
+        return processed_paths, annotations, avif_files
+
     async def _ffmpeg_compress_av1(self, input_path: Path, request_id: str) -> Path | None:
         async with self.heavy_task_lock:
             return await self.encoder.compress_avif(input_path, request_id)

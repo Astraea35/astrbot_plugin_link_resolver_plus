@@ -18,6 +18,7 @@ from ..common import (
     get_xhs_image_path,
     get_xhs_video_path,
 )
+from ..common.base_mixin import BaseUtilsMixin
 from ..common.media import (
     build_image_processing_annotation_text,
     format_image_processing_annotation,
@@ -493,56 +494,25 @@ class XiaohongshuMixin:
         img_type = "未检测"
         target_model = None
 
-        if getattr(self, "xhs_enable_ai_upscale", True):
-            threshold = getattr(self, "xhs_low_quality_threshold", 1080)
-            model_setting = getattr(
-                self, "xhs_upscayl_model_name", "自动 (CV特征识别)"
-            )
-            need_upscale, img_type, target_model = (
-                await self.upscaler.check_is_low_quality(
-                    current_path,
-                    threshold=threshold,
-                    model_setting=model_setting,
-                )
-            )
-            if need_upscale:
-                if task_info is not None:
-                    task_info["stage"] = "🎨 AI 升图中"
-                    task_info["percent"] = "0.0%"
-                async with self.heavy_task_lock:
-                    upscaled_path = await self.upscaler.upscale_image(
-                        current_path,
-                        request_id,
-                        override_model=target_model,
-                    )
-                if upscaled_path != current_path:
-                    propagate_metadata = getattr(self, "_propagate_image_metadata", None)
-                    if propagate_metadata:
-                        await propagate_metadata(
-                            current_path,
-                            upscaled_path,
-                            {
-                                "operation": "ai_upscale",
-                                "model": target_model,
-                                "scale": getattr(self, "upscayl_scale", None),
-                                "double_pass": getattr(self, "upscayl_double_pass", None),
-                                "taa": getattr(self, "upscayl_enable_taa", None),
-                            },
-                        )
-                    current_path = upscaled_path
-                    was_upscaled = True
-
-        if getattr(self, "enable_global_ffmpeg_compress", True):
-            if task_info is not None:
-                task_info["stage"] = "🗜️ FFmpeg AV1 压缩中"
-                task_info["percent"] = "0.0%"
-            avif_path, jpg_preview = await self._convert_to_avif_with_preview(current_path, request_id)
-            if avif_path is not None and avif_path != current_path:
-                current_path = avif_path
-            if jpg_preview is not None:
-                preview_path = jpg_preview
-        else:
-            preview_path = current_path
+        (
+            current_path,
+            preview_path,
+            was_upscaled,
+            img_type,
+            target_model,
+            upscaled_path,
+        ) = await BaseUtilsMixin._process_image_file(
+            self,
+            current_path,
+            request_id,
+            auto_upscale=(
+                "xhs_enable_ai_upscale",
+                "xhs_low_quality_threshold",
+                "xhs_upscayl_model_name",
+            ),
+            compress_avif=getattr(self, "enable_global_ffmpeg_compress", True),
+            generate_preview=True,
+        )
 
         return current_path, preview_path, was_upscaled, img_type, target_model, upscaled_path
 
