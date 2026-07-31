@@ -1,37 +1,4 @@
 {
-    "image_tool_settings": {
-        "description": "Standalone image tool settings",
-        "type": "object",
-        "items": {
-            "enabled": {
-                "description": "Enable /upscale and /avif commands",
-                "type": "bool",
-                "default": true
-            },
-            "model_name": {
-                "description": "Model used by the standalone /upscale command",
-                "type": "string",
-                "default": "自动 (CV特征识别)",
-                "options": [
-                    "自动 (CV特征识别)",
-                    "二次元 (digital-art-4x)",
-                    "高保真 (high-fidelity-4x)",
-                    "Remacri (remacri-4x)",
-                    "超混合平衡 (ultramix-balanced-4x)",
-                    "超锐化 (ultrasharp-4x)",
-                    "轻量 (upscayl-lite-4x)",
-                    "标准 (upscayl-standard-4x)"
-                ]
-            },
-            "max_image_bytes": {
-                "description": "Maximum downloaded image size in bytes",
-                "type": "int",
-                "default": 52428800,
-                "min": 1048576,
-                "max": 524288000
-            }
-        }
-    },
     "enable_platforms": {
         "description": "启用的平台",
         "hint": "勾选要启用解析的平台。",
@@ -657,6 +624,39 @@
                 "type": "list",
                 "hint": "私聊用户的 QQ 号(纯数字字符串)。例如: 123456789。",
                 "default": []
+            }
+        }
+    },
+    "image_tool_settings": {
+        "description": "独立图片工具设置",
+        "type": "object",
+        "items": {
+            "enabled": {
+                "description": "启用 /升图 和 /avif 命令",
+                "type": "bool",
+                "default": true
+            },
+            "model_name": {
+                "description": "独立 /升图 命令使用的模型",
+                "type": "string",
+                "default": "自动 (CV特征识别)",
+                "options": [
+                    "自动 (CV特征识别)",
+                    "二次元 (digital-art-4x)",
+                    "高保真 (high-fidelity-4x)",
+                    "Remacri (remacri-4x)",
+                    "超混合平衡 (ultramix-balanced-4x)",
+                    "超锐化 (ultrasharp-4x)",
+                    "轻量 (upscayl-lite-4x)",
+                    "标准 (upscayl-standard-4x)"
+                ]
+            },
+            "max_image_bytes": {
+                "description": "下载图片大小上限（字节）",
+                "type": "int",
+                "default": 52428800,
+                "min": 1048576,
+                "max": 524288000
             }
         }
     }

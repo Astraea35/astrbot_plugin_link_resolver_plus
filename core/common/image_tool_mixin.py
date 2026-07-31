@@ -9,6 +9,10 @@ from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent
 from astrbot.api.message_components import Image, Reply
 
+from .media.annotations import (
+    build_image_processing_annotation_text,
+    format_image_processing_annotation,
+)
 from .media.upscaler import UPSCAYL_MODEL_NAME_MAP
 from .paths import get_cache_path
 
@@ -132,10 +136,12 @@ class ImageToolMixin:
             return None
         return COMMAND_MODEL_ALIASES.get(argument)
 
-    async def _select_image_tool_model(self, input_path: Path, argument: str) -> str:
+    async def _select_image_tool_metadata(
+        self, input_path: Path, argument: str
+    ) -> tuple[str, str]:
         selected = self._resolve_command_model(argument)
         if selected and selected != "auto":
-            return selected
+            return selected, f"手动指定({selected})"
 
         configured = str(getattr(self, "image_tool_model_name", "auto"))
         configured_model = UPSCAYL_MODEL_NAME_MAP.get(configured)
@@ -149,15 +155,20 @@ class ImageToolMixin:
                 configured,
             )
         if configured_model not in ("auto", "None", "") and "自动" not in configured:
-            return configured_model
+            return configured_model, f"手动指定({configured_model})"
 
         self.current_task_info["stage"] = "CV 图片类型检测中"
-        _, _, recommended_model = await self.upscaler.check_is_low_quality(
+        _, image_type, recommended_model = await self.upscaler.check_is_low_quality(
             input_path,
             threshold=getattr(self, "xhs_low_quality_threshold", 1080),
             model_setting="自动 (CV特征识别)",
         )
-        return recommended_model
+        return recommended_model, image_type
+
+    async def _select_image_tool_model(self, input_path: Path, argument: str) -> str:
+        """Return the selected model while keeping the legacy helper contract."""
+        model, _ = await self._select_image_tool_metadata(input_path, argument)
+        return model
 
     async def _run_image_tool(self, event: AstrMessageEvent, command: str, upscale: bool):
         if not getattr(self, "image_tool_enabled", True):
@@ -195,14 +206,25 @@ class ImageToolMixin:
                 self.current_task_info = task_info
 
                 result_path = input_path
+                was_upscaled = False
+                image_type = "未检测"
+                target_model = None
+                upscaled_path = None
                 if upscale:
-                    model = await self._select_image_tool_model(input_path, argument)
+                    model, image_type = await self._select_image_tool_metadata(
+                        input_path, argument
+                    )
+                    target_model = model
                     task_info["stage"] = f"AI 升图处理中 ({model})"
-                    result_path = await self.upscaler.upscale_image(
+                    candidate_path = await self.upscaler.upscale_image(
                         input_path,
                         f"image-tool-{input_path.stem}-{model}",
                         override_model=model,
                     )
+                    result_path = candidate_path
+                    if candidate_path != input_path and candidate_path.exists():
+                        was_upscaled = True
+                        upscaled_path = candidate_path
 
                 task_info["stage"] = "AVIF 转码处理中"
                 avif_path = await self.encoder.compress_avif(
@@ -216,6 +238,20 @@ class ImageToolMixin:
                 task_info["percent"] = "100.0%"
                 if not await self._send_file_via_api(event, avif_path):
                     yield event.plain_result("文件发送失败，请检查当前协议适配器。")
+                    return
+
+                annotation = format_image_processing_annotation(
+                    1,
+                    input_path,
+                    avif_path,
+                    was_upscaled,
+                    image_type,
+                    target_model,
+                    upscaled_path,
+                )
+                annotation_text = build_image_processing_annotation_text([annotation])
+                if annotation_text:
+                    yield event.plain_result(annotation_text)
         except Exception as exc:
             logger.error("Image tool command failed: %s", exc)
             yield event.plain_result(f"图片处理失败：{exc}")
