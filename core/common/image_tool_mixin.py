@@ -100,7 +100,15 @@ class ImageToolMixin:
         return None
 
     async def _download_tool_image(self, url: str) -> Path:
-        max_bytes = int(self._get_config_value("image_tool_settings.max_image_bytes", 52428800))
+        max_image_mb = self._get_config_value("image_tool_settings.max_image_mb", None)
+        if max_image_mb is None:
+            # Keep existing byte-based configurations working after the unit change.
+            legacy_max_bytes = int(
+                self._get_config_value("image_tool_settings.max_image_bytes", 52428800)
+            )
+            max_image_mb = legacy_max_bytes // 1048576 if legacy_max_bytes > 0 else 0
+        max_image_mb = max(0, int(max_image_mb))
+        max_bytes = max_image_mb * 1048576
         local_path = Path(url.removeprefix("file://"))
         if local_path.is_file():
             content = local_path.read_bytes()
@@ -110,7 +118,7 @@ class ImageToolMixin:
                 response.raise_for_status()
                 content = response.content
 
-        if len(content) > max_bytes:
+        if max_image_mb > 0 and len(content) > max_bytes:
             raise ValueError(f"图片大小超过限制（最大 {max_bytes // 1048576} MB）")
 
         digest = hashlib.md5(content).hexdigest()

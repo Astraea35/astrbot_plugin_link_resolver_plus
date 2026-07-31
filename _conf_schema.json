@@ -657,12 +657,12 @@
                     "标准 (upscayl-standard-4x)"
                 ]
             },
-            "max_image_bytes": {
-                "description": "下载图片大小上限（字节）",
+            "max_image_mb": {
+                "description": "下载图片大小上限（MB），填写 0 表示不设上限",
                 "type": "int",
-                "default": 52428800,
-                "min": 1048576,
-                "max": 524288000
+                "default": 50,
+                "min": 0,
+                "max": 500
             }
         }
     }
