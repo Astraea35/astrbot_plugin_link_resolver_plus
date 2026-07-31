@@ -381,7 +381,7 @@ class DouyinMixin:
             # 提取已成功下载的图片路径，供后续升图与转码使用
             image_paths = [p for p in media_paths if p.suffix.lower() in ('.jpg', '.jpeg', '.png', '.webp')]
             source_image_paths = list(image_paths)
-            image_processing_metadata = [(False, "未检测", None) for _ in image_paths]
+            image_processing_metadata = [(False, "未检测", None, None) for _ in image_paths]
 
             # 3. 后处理：AI 升图
             if getattr(self, "douyin_enable_ai_upscale", True) and image_urls and image_paths:
@@ -393,7 +393,7 @@ class DouyinMixin:
                         img_path, request_id,
                         "douyin_enable_ai_upscale", "douyin_low_quality_threshold", "douyin_upscayl_model_name"
                     )
-                    image_processing_metadata.append((was_upscaled, image_type, target_model))
+                    image_processing_metadata.append((was_upscaled, image_type, target_model, upscaled if was_upscaled else None))
                     if upscaled != img_path and upscaled.exists():
                         new_image_paths.append(upscaled)
                         for j, mp in enumerate(media_paths):

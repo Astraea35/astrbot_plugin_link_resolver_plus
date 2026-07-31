@@ -463,6 +463,7 @@ class XiaohongshuMixin:
 
         preview_path = None
         was_upscaled = False
+        upscaled_path = None
         img_type = "未检测"
         target_model = None
 
@@ -504,7 +505,7 @@ class XiaohongshuMixin:
         else:
             preview_path = current_path
 
-        return current_path, preview_path, was_upscaled, img_type, target_model
+        return current_path, preview_path, was_upscaled, img_type, target_model, upscaled_path
 
     # endregion
 
@@ -694,11 +695,11 @@ class XiaohongshuMixin:
             processed_results = []
 
             for i, img_path in enumerate(image_paths):
-                proc_path, preview_path, was_upscaled, img_type, target_model = await self._post_process_xhs_image(
+                proc_path, preview_path, was_upscaled, img_type, target_model, upscaled_path = await self._post_process_xhs_image(
                     img_path, request_id, index=i+1, total=len(image_paths)
                 )
                 upscale_annotations.append(format_image_processing_annotation(
-                    i + 1, img_path, proc_path, was_upscaled, img_type, target_model
+                    i + 1, img_path, proc_path, was_upscaled, img_type, target_model, upscaled_path
                 ))
 
                 display_path = preview_path if (preview_path and preview_path.exists()) else proc_path

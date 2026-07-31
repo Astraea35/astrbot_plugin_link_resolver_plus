@@ -1,6 +1,8 @@
 import hashlib
+import re
 import time
 from pathlib import Path
+from urllib.parse import unquote
 
 import httpx
 import astrbot.api.message_components as Comp
@@ -47,23 +49,58 @@ class ImageToolMixin:
                         payload = result.get("message", []) if isinstance(result, dict) else []
                         if isinstance(payload, list):
                             for item in payload:
-                                data = item.get("data", {}) if isinstance(item, dict) else {}
-                                if item.get("type") == "image" and data.get("url"):
-                                    return data["url"]
+                                image_url = self._image_url_from_component(item)
+                                if image_url:
+                                    return image_url
                 except Exception as exc:
                     logger.warning("Failed to extract image from reply: %s", exc)
 
         for component in message:
-            if isinstance(component, Comp.Image) and getattr(component, "url", None):
-                return component.url
+            image_url = self._image_url_from_component(component)
+            if image_url:
+                return image_url
+
+        raw_message = str(
+            getattr(getattr(event, "message_obj", None), "raw_message", "")
+            or getattr(event, "message_str", "")
+            or ""
+        )
+        match = re.search(r"\[CQ:image,[^\]]*?url=([^,\]]+)", raw_message)
+        if match:
+            return unquote(match.group(1))
+        return None
+
+    @staticmethod
+    def _image_url_from_component(component) -> str | None:
+        if isinstance(component, dict):
+            if str(component.get("type", "")).lower() != "image":
+                return None
+            data = component.get("data") or component
+            if isinstance(data, dict):
+                for key in ("url", "file", "path"):
+                    value = data.get(key)
+                    if value:
+                        return str(value)
+            return None
+
+        if not isinstance(component, Comp.Image):
+            return None
+        for key in ("url", "file", "path"):
+            value = getattr(component, key, None)
+            if value:
+                return str(value)
         return None
 
     async def _download_tool_image(self, url: str) -> Path:
         max_bytes = int(self._get_config_value("image_tool_settings.max_image_bytes", 52428800))
-        async with httpx.AsyncClient(follow_redirects=True, timeout=30) as client:
-            response = await client.get(url)
-            response.raise_for_status()
-            content = response.content
+        local_path = Path(url.removeprefix("file://"))
+        if local_path.is_file():
+            content = local_path.read_bytes()
+        else:
+            async with httpx.AsyncClient(follow_redirects=True, timeout=30) as client:
+                response = await client.get(url)
+                response.raise_for_status()
+                content = response.content
 
         if len(content) > max_bytes:
             raise ValueError(f"图片大小超过限制（最大 {max_bytes // 1048576} MB）")
@@ -77,6 +114,7 @@ class ImageToolMixin:
     @staticmethod
     def _command_argument(event: AstrMessageEvent) -> str:
         text = str(getattr(event, "message_str", "") or "").strip()
+        text = re.sub(r"\[CQ:[^\]]+\]", "", text).strip()
         for prefix in ("/升图", "升图"):
             if text.startswith(prefix):
                 return text[len(prefix):].strip()

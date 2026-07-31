@@ -25,19 +25,34 @@ def format_file_size(size_bytes: int) -> str:
     return f"{size:.2f} GB"
 
 
-def format_size_comparison(source_path: Path, processed_path: Path) -> str:
-    """Describe the processed file size relative to its downloaded source."""
+def format_size_comparison(
+    source_path: Path,
+    processed_path: Path,
+    upscaled_path: Path | None = None,
+) -> str:
+    """Describe source, optional AI result, and final encoded file sizes."""
     try:
         source_size = source_path.stat().st_size
         processed_size = processed_path.stat().st_size
+        upscaled_size = upscaled_path.stat().st_size if upscaled_path else None
     except OSError:
         return "原始/转码后大小不可用"
 
-    percentage = (processed_size / source_size * 100) if source_size else 0.0
-    return (
-        f"原始: {format_file_size(source_size)} -> "
-        f"转码后: {format_file_size(processed_size)} ({percentage:.1f}%)"
+    def percentage(size: int) -> float:
+        return (size / source_size * 100) if source_size else 0.0
+
+    parts = [f"原始: {format_file_size(source_size)}"]
+    if upscaled_path and upscaled_path != processed_path and upscaled_size is not None:
+        parts.append(
+            f"AI升图后: {format_file_size(upscaled_size)} "
+            f"({percentage(upscaled_size):.1f}%)"
+        )
+    final_label = "AI升图后" if upscaled_path == processed_path else "转码后"
+    parts.append(
+        f"{final_label}: {format_file_size(processed_size)} "
+        f"({percentage(processed_size):.1f}%)"
     )
+    return " -> ".join(parts)
 
 
 def format_image_processing_annotation(
@@ -47,10 +62,11 @@ def format_image_processing_annotation(
     was_upscaled: bool,
     image_type: str | None = None,
     target_model: str | None = None,
+    upscaled_path: Path | None = None,
 ) -> str:
     """Build one consistent image-processing annotation line for every platform."""
     image_label = image_type or "未检测"
-    size_comparison = format_size_comparison(source_path, processed_path)
+    size_comparison = format_size_comparison(source_path, processed_path, upscaled_path)
     if was_upscaled:
         model_label = MODEL_DISPLAY_NAMES.get(target_model, target_model or "未记录")
         return (
