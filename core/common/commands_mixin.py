@@ -28,12 +28,10 @@ class CommandsMixin:
         async for res in self._do_query_xhs_progress(event):
             yield res
 
-    @filter.command("升图进度")
     async def cmd_query_xhs_progress_3(self, event: AstrMessageEvent):
         async for res in self._do_query_xhs_progress(event):
             yield res
 
-    @filter.command("avif进度")
     async def cmd_query_avif_progress(self, event: AstrMessageEvent):
         async for res in self._do_query_xhs_progress(event):
             yield res

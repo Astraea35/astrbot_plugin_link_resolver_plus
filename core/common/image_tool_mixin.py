@@ -5,9 +5,9 @@ from pathlib import Path
 from urllib.parse import unquote
 
 import httpx
-import astrbot.api.message_components as Comp
 from astrbot.api import logger
-from astrbot.api.event import AstrMessageEvent, filter
+from astrbot.api.event import AstrMessageEvent
+from astrbot.api.message_components import Image, Reply
 
 from .media.upscaler import UPSCAYL_MODEL_NAME_MAP
 from .paths import get_cache_path
@@ -38,7 +38,7 @@ class ImageToolMixin:
     async def _extract_image_url_for_tool(self, event: AstrMessageEvent) -> str | None:
         message = getattr(getattr(event, "message_obj", None), "message", [])
         for component in message:
-            if isinstance(component, Comp.Reply):
+            if isinstance(component, Reply):
                 try:
                     bot = getattr(event, "bot", None)
                     call_action = getattr(bot, "call_action", None) or getattr(
@@ -52,6 +52,10 @@ class ImageToolMixin:
                                 image_url = self._image_url_from_component(item)
                                 if image_url:
                                     return image_url
+                        elif isinstance(payload, str):
+                            match = re.search(r"\[CQ:image,[^\]]*?url=([^,\]]+)", payload)
+                            if match:
+                                return unquote(match.group(1))
                 except Exception as exc:
                     logger.warning("Failed to extract image from reply: %s", exc)
 
@@ -83,7 +87,7 @@ class ImageToolMixin:
                         return str(value)
             return None
 
-        if not isinstance(component, Comp.Image):
+        if not isinstance(component, Image):
             return None
         for key in ("url", "file", "path"):
             value = getattr(component, key, None)
@@ -221,13 +225,11 @@ class ImageToolMixin:
             if task_info is not None and getattr(self, "current_task_info", None) is task_info:
                 self.current_task_info = None
 
-    @filter.command("升图")
     async def cmd_image_tool_upscale(self, event: AstrMessageEvent):
         yield event.plain_result("已加入图片处理队列，正在执行 AI 升图和 AVIF 转码。")
         async for result in self._run_image_tool(event, "升图", upscale=True):
             yield result
 
-    @filter.command("avif")
     async def cmd_image_tool_avif(self, event: AstrMessageEvent):
         yield event.plain_result("已加入图片处理队列，正在执行 AVIF 转码。")
         async for result in self._run_image_tool(event, "avif", upscale=False):

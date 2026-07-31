@@ -234,6 +234,28 @@ class LinkResolverPlugin(
                 return
             finally:
                 await self._recall_notify(event, notify_id)
+
+    @filter.command("升图")
+    async def handle_image_tool_upscale(self, event: AstrMessageEvent):
+        logger.info("[ImageTool] received /升图 command")
+        async for result in self.cmd_image_tool_upscale(event):
+            yield result
+
+    @filter.command("avif")
+    async def handle_image_tool_avif(self, event: AstrMessageEvent):
+        logger.info("[ImageTool] received /avif command")
+        async for result in self.cmd_image_tool_avif(event):
+            yield result
+
+    @filter.command("升图进度")
+    async def handle_image_tool_progress(self, event: AstrMessageEvent):
+        async for result in self._do_query_xhs_progress(event):
+            yield result
+
+    @filter.command("avif进度")
+    async def handle_image_tool_avif_progress(self, event: AstrMessageEvent):
+        async for result in self._do_query_xhs_progress(event):
+            yield result
     # endregion
 
 
