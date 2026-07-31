@@ -235,7 +235,7 @@ class LinkResolverPlugin(
             finally:
                 await self._recall_notify(event, notify_id)
 
-    @filter.command("升图")
+    @filter.regex(r"^/?升图(?:\s+.*)?$", priority=100)
     async def handle_image_tool_upscale(self, event: AstrMessageEvent):
         logger.info("[ImageTool] received /升图 command")
         async for result in self.cmd_image_tool_upscale(event):
