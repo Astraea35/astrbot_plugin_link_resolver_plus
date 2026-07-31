@@ -233,6 +233,22 @@ class TwitterMixin:
         source_image_paths = list(image_paths)
         image_processing_metadata = [(False, "未检测", None, None) for _ in image_paths]
 
+        prepare_metadata = getattr(self, "_prepare_image_metadata", None)
+        if prepare_metadata:
+            for i, img_path in enumerate(image_paths):
+                await prepare_metadata(
+                    img_path,
+                    {
+                        "platform": "twitter",
+                        "url": result.source_url,
+                        "author": result.author,
+                        "title": result.text[:80] if getattr(result, "text", None) else None,
+                        "image_index": i + 1,
+                        "image_count": len(image_paths),
+                        "original_image_url": image_urls[i] if i < len(image_urls) else None,
+                    },
+                )
+
         # 3. 后处理：AI 升图
         if getattr(self, "twitter_enable_ai_upscale", True) and image_urls and image_paths:
             logger.info("🎨 X 图片 AI 升图检测开始...")

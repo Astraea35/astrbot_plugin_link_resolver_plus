@@ -573,6 +573,12 @@
                 "hint": "小红书/抖音/微博/X 平台的图片是否自动转为 AVIF 格式。关闭后图片保持原格式。",
                 "default": true
             },
+            "preserve_image_metadata": {
+                "description": "保留图片元数据",
+                "type": "bool",
+                "hint": "开启后保留原图的拍摄时间、地点、相机参数、来源、处理记录等元数据；同时适用于平台图片和 /升图、/avif 命令。",
+                "default": true
+            },
             "ffmpeg_bin_path": {
                 "description": "FFmpeg 可执行文件路径",
                 "type": "string",

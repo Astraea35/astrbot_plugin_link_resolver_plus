@@ -245,6 +245,22 @@ class WeiboMixin:
             source_image_paths = list(image_paths)
             image_processing_metadata = [(False, "未检测", None, None) for _ in image_paths]
 
+            prepare_metadata = getattr(self, "_prepare_image_metadata", None)
+            if prepare_metadata:
+                for i, img_path in enumerate(image_paths):
+                    await prepare_metadata(
+                        img_path,
+                        {
+                            "platform": "weibo",
+                            "url": result.source_url,
+                            "author": result.author,
+                            "title": result.title,
+                            "image_index": i + 1,
+                            "image_count": len(image_paths),
+                            "original_image_url": image_urls[i] if i < len(image_urls) else None,
+                        },
+                    )
+
             # 2. 后处理：AI 升图
             if getattr(self, "weibo_enable_ai_upscale", True) and image_urls and image_paths:
                 logger.info("🎨 微博图片 AI 升图检测开始...")

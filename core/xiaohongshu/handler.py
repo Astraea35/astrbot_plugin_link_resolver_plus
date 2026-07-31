@@ -436,9 +436,26 @@ class XiaohongshuMixin:
         if image_path.suffix.lower() in ('.heic', '.heif'):
             ffmpeg_bin = getattr(self, "ffmpeg_bin_path", "ffmpeg")
             png_path = image_path.with_suffix('.png')
+            metadata_enabled = getattr(self, "preserve_image_metadata", True)
+            metadata = (
+                await asyncio.to_thread(self.image_metadata_store.ensure, image_path)
+                if metadata_enabled
+                else None
+            )
+            processing = {
+                "operation": "transcode",
+                "format": "PNG",
+                "codec": "png",
+                "source_format": image_path.suffix.lower().lstrip("."),
+            }
             cmd = [
                 ffmpeg_bin, "-hide_banner", "-y",
                 "-i", str(image_path.resolve()),
+                *(
+                    self.image_metadata_store.ffmpeg_args(metadata, processing)
+                    if metadata_enabled and metadata is not None
+                    else []
+                ),
                 str(png_path.resolve())
             ]
             try:
@@ -447,6 +464,10 @@ class XiaohongshuMixin:
                 )
                 await proc.wait()
                 if proc.returncode == 0 and png_path.exists():
+                    if metadata_enabled:
+                        await asyncio.to_thread(
+                            self.image_metadata_store.finalize, image_path, png_path, processing
+                        )
                     logger.info("🔄 [HEIC 转码] 自动将 HEIC 原图转化为 PNG: %s", png_path.name)
                     await asyncio.to_thread(image_path.unlink, missing_ok=True)
                     return png_path
@@ -454,11 +475,16 @@ class XiaohongshuMixin:
                 logger.warning("⚠️ HEIC 自动转码 PNG 异常: %s", str(e))
         return image_path
 
-    async def _post_process_xhs_image(self, image_path, request_id, index=0, total=0):
+    async def _post_process_xhs_image(
+        self, image_path, request_id, index=0, total=0, metadata_context=None
+    ):
         task_info = getattr(self, "current_task_info", None)
         if task_info is not None:
             task_info["current_img"] = index
 
+        prepare_metadata = getattr(self, "_prepare_image_metadata", None)
+        if prepare_metadata:
+            await prepare_metadata(image_path, metadata_context)
         current_path = await self._convert_heic_to_png(image_path)
 
         preview_path = None
@@ -490,6 +516,19 @@ class XiaohongshuMixin:
                         override_model=target_model,
                     )
                 if upscaled_path != current_path:
+                    propagate_metadata = getattr(self, "_propagate_image_metadata", None)
+                    if propagate_metadata:
+                        await propagate_metadata(
+                            current_path,
+                            upscaled_path,
+                            {
+                                "operation": "ai_upscale",
+                                "model": target_model,
+                                "scale": getattr(self, "upscayl_scale", None),
+                                "double_pass": getattr(self, "upscayl_double_pass", None),
+                                "taa": getattr(self, "upscayl_enable_taa", None),
+                            },
+                        )
                     current_path = upscaled_path
                     was_upscaled = True
 
@@ -696,7 +735,28 @@ class XiaohongshuMixin:
 
             for i, img_path in enumerate(image_paths):
                 proc_path, preview_path, was_upscaled, img_type, target_model, upscaled_path = await self._post_process_xhs_image(
-                    img_path, request_id, index=i+1, total=len(image_paths)
+                    img_path,
+                    request_id,
+                    index=i + 1,
+                    total=len(image_paths),
+                    metadata_context={
+                        "platform": "xiaohongshu",
+                        "url": result.source_url,
+                        "author": result.author,
+                        "title": result.title,
+                        "image_index": i + 1,
+                        "image_count": len(image_paths),
+                        "original_image_url": result.image_urls[i] if i < len(result.image_urls) else None,
+                        "live_photo_video_url": (
+                            result.live_photo_urls[i]
+                            if i < len(getattr(result, "live_photo_urls", []))
+                            else None
+                        ),
+                        "live_photo": bool(
+                            i < len(getattr(result, "live_photo_urls", []))
+                            and result.live_photo_urls[i]
+                        ),
+                    },
                 )
                 upscale_annotations.append(format_image_processing_annotation(
                     i + 1, img_path, proc_path, was_upscaled, img_type, target_model, upscaled_path

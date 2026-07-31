@@ -258,6 +258,9 @@ class ConfigMixin:
 
         # 通用设置
         self.enable_global_ffmpeg_compress = bool(self._get_config_value("general_settings.enable_ffmpeg_compress", True))
+        self.preserve_image_metadata = bool(
+            self._get_config_value("general_settings.preserve_image_metadata", True)
+        )
         self.ffmpeg_bin_path = str(self._get_config_value("general_settings.ffmpeg_bin_path", "ffmpeg")).strip()
         self.progress_report_interval = max(1, min(100, int(self._get_config_value("general_settings.progress_report_interval", 1))))
         self.retry_count = max(

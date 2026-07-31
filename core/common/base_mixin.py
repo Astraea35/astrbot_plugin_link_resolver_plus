@@ -16,7 +16,7 @@ from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent, MessageChain
 
 from .exceptions import SizeLimitExceeded
-from .media import monitor_process_percentage
+from .media import ImageMetadataStore, monitor_process_percentage
 from .paths import get_xhs_card_path, get_xhs_image_path, get_xhs_video_path
 
 TASK_NAME_PREFIX = "link-resolver-parse"
@@ -599,6 +599,32 @@ class BaseUtilsMixin:
             self._heavy_task_lock_obj = asyncio.Lock()
         return self._heavy_task_lock_obj
 
+    @property
+    def image_metadata_store(self) -> ImageMetadataStore:
+        if not hasattr(self, "_image_metadata_store"):
+            self._image_metadata_store = ImageMetadataStore()
+        return self._image_metadata_store
+
+    async def _prepare_image_metadata(self, image_path: Path, context: dict | None = None) -> None:
+        if not getattr(self, "preserve_image_metadata", True):
+            return
+        await asyncio.to_thread(self.image_metadata_store.ensure, Path(image_path), context)
+
+    async def _propagate_image_metadata(
+        self,
+        source_path: Path,
+        target_path: Path,
+        processing: dict | None = None,
+    ) -> None:
+        if not getattr(self, "preserve_image_metadata", True):
+            return
+        await asyncio.to_thread(
+            self.image_metadata_store.propagate,
+            Path(source_path),
+            Path(target_path),
+            processing,
+        )
+
     async def _monitor_process_percentage(self, proc: asyncio.subprocess.Process, stage_prefix: str) -> None:
         await monitor_process_percentage(proc, stage_prefix, self)
 
@@ -624,6 +650,17 @@ class BaseUtilsMixin:
             async with self.heavy_task_lock:
                 upscaled_path = await self.upscaler.upscale_image(image_path, request_id, override_model=recommended_model)
                 if upscaled_path != image_path and upscaled_path.exists():
+                    await self._propagate_image_metadata(
+                        image_path,
+                        upscaled_path,
+                        {
+                            "operation": "ai_upscale",
+                            "model": recommended_model,
+                            "scale": getattr(self, "upscayl_scale", None),
+                            "double_pass": getattr(self, "upscayl_double_pass", None),
+                            "taa": getattr(self, "upscayl_enable_taa", None),
+                        },
+                    )
                     return upscaled_path, True, img_type, recommended_model
         except Exception as e:
             logger.warning("⚠️ AI 升图处理异常: %s", str(e))

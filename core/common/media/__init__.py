@@ -7,6 +7,7 @@ from .annotations import (
 )
 from .classifier import AnimePhotoClassifier, get_classifier
 from .encoder import MediaEncoder
+from .metadata import ImageMetadataStore
 from .process import monitor_process_percentage
 from .upscaler import UpscaylUpscaler
 
@@ -15,6 +16,7 @@ __all__ = [
     "get_classifier",
     "UpscaylUpscaler",
     "MediaEncoder",
+    "ImageMetadataStore",
     "monitor_process_percentage",
     "build_image_processing_annotation_text",
     "format_image_processing_annotation",

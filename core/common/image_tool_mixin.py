@@ -191,6 +191,15 @@ class ImageToolMixin:
         task_info = None
         try:
             input_path = await self._download_tool_image(url)
+            await self._prepare_image_metadata(
+                input_path,
+                {
+                    "platform": "image_tool",
+                    "url": url,
+                    "image_index": 1,
+                    "image_count": 1,
+                },
+            )
             async with self.heavy_task_lock:
                 acquired = True
                 self.image_tool_waiting = max(0, self.image_tool_waiting - 1)
@@ -223,6 +232,17 @@ class ImageToolMixin:
                     )
                     result_path = candidate_path
                     if candidate_path != input_path and candidate_path.exists():
+                        await self._propagate_image_metadata(
+                            input_path,
+                            candidate_path,
+                            {
+                                "operation": "ai_upscale",
+                                "model": model,
+                                "scale": getattr(self, "upscayl_scale", None),
+                                "double_pass": getattr(self, "upscayl_double_pass", None),
+                                "taa": getattr(self, "upscayl_enable_taa", None),
+                            },
+                        )
                         was_upscaled = True
                         upscaled_path = candidate_path
 

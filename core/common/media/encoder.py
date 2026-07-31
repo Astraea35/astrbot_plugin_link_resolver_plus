@@ -3,6 +3,7 @@ import asyncio
 import time
 from pathlib import Path
 from astrbot.api import logger
+from .metadata import ImageMetadataStore
 from .process import monitor_process_percentage
 
 
@@ -11,15 +12,40 @@ class MediaEncoder:
 
     def __init__(self, plugin_instance):
         self.plugin = plugin_instance
+        self.metadata = ImageMetadataStore()
 
-    async def compress_avif(self, input_path: Path, request_id: str, duration_sec: float | None = None) -> Path | None:
+    async def compress_avif(
+        self,
+        input_path: Path,
+        request_id: str,
+        duration_sec: float | None = None,
+    ) -> Path | None:
         """异步将图片压缩为 AVIF，严格完全对齐用户的 egFreeUI 预设命令参数"""
         ffmpeg_bin = getattr(self.plugin, "ffmpeg_bin_path", "ffmpeg")
         output_path = input_path.parent / f"{input_path.stem}_av1.avif"
+        metadata_enabled = getattr(self.plugin, "preserve_image_metadata", True)
+        metadata = (
+            await asyncio.to_thread(self.metadata.ensure, input_path)
+            if metadata_enabled
+            else None
+        )
+        processing = {
+            "operation": "transcode",
+            "format": "AVIF",
+            "codec": "libaom-av1",
+            "parameters": {
+                "cpu_used": 1,
+                "crf": 18,
+                "still_picture": 1,
+                "row_mt": 1,
+            },
+        }
 
         if output_path.exists():
             age = time.time() - (await asyncio.to_thread(lambda: output_path.stat().st_mtime))
             if age < 7 * 24 * 3600:
+                if metadata_enabled and self.metadata.read(output_path) is None:
+                    await asyncio.to_thread(self.metadata.finalize, input_path, output_path, processing)
                 logger.info("⚡ [Cache Hit] 命中 7 天内的 AV1 压缩缓存: %s", output_path.name)
                 return output_path
 
@@ -36,6 +62,11 @@ class MediaEncoder:
             "-crf:v:0", "18",
             "-still-picture", "1",
             "-row-mt", "1",
+            *(
+                self.metadata.ffmpeg_args(metadata, processing)
+                if metadata_enabled and metadata is not None
+                else []
+            ),
             str(output_path.resolve()),
         ]
         try:
@@ -49,6 +80,8 @@ class MediaEncoder:
 
             if proc.returncode == 0 and output_path.exists():
                 new_size = (await asyncio.to_thread(lambda: output_path.stat().st_size)) / 1024
+                if metadata_enabled:
+                    await asyncio.to_thread(self.metadata.finalize, input_path, output_path, processing)
                 logger.info("✅ [FFmpeg] AV1 完成: %.1fKB → %.1fKB (%s)", orig_size, new_size, output_path.name)
                 return output_path
             else:
@@ -63,11 +96,30 @@ class MediaEncoder:
         """从图片生成轻量 JPG 预览图 (最长边 1920px)，防止合并转发直接发送 10MB+ 的 Upscayl PNG 原图"""
         ffmpeg_bin = getattr(self.plugin, "ffmpeg_bin_path", "ffmpeg")
         preview_path = image_path.parent / f"{image_path.stem}_preview.jpg"
+        metadata_enabled = getattr(self.plugin, "preserve_image_metadata", True)
+        metadata = (
+            await asyncio.to_thread(self.metadata.ensure, image_path)
+            if metadata_enabled
+            else None
+        )
+        processing = {
+            "operation": "preview",
+            "format": "JPEG",
+            "codec": "mjpeg",
+            "parameters": {"max_width": 1920, "max_height": 1920, "quality": 4},
+        }
 
         # 若原图已经是 JPG 且体积 <= 2MB，直接复用
         if image_path.suffix.lower() in ('.jpg', '.jpeg'):
             try:
                 if image_path.stat().st_size <= 2 * 1024 * 1024:
+                    if metadata_enabled:
+                        await asyncio.to_thread(
+                            self.metadata.finalize,
+                            image_path,
+                            image_path,
+                            {**processing, "reused": True},
+                        )
                     return image_path
             except Exception:
                 pass
@@ -81,6 +133,11 @@ class MediaEncoder:
             "-vf", "scale=1920:1920:force_original_aspect_ratio=decrease",
             "-q:v", "4",
             "-frames:v", "1",
+            *(
+                self.metadata.ffmpeg_args(metadata, processing)
+                if metadata_enabled and metadata is not None
+                else []
+            ),
             str(preview_path.resolve()),
         ]
         try:
@@ -89,6 +146,10 @@ class MediaEncoder:
             )
             await monitor_process_percentage(proc, "🖼️ 生成 JPG 预览", self.plugin)
             if proc.returncode == 0 and preview_path.exists():
+                if metadata_enabled:
+                    await asyncio.to_thread(
+                        self.metadata.finalize, image_path, preview_path, processing
+                    )
                 logger.info("🗼 JPG 预览生成完成: %s (%.1fKB)", preview_path.name, preview_path.stat().st_size / 1024)
                 return preview_path
             logger.warning("⚠️ FFmpeg JPG 预览生成失败 (returncode=%s)，降级使用原图", proc.returncode)
