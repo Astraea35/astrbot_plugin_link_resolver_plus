@@ -643,9 +643,10 @@
                 "default": true
             },
             "model_name": {
-                "description": "独立 /升图 命令使用的模型",
+                "description": "Upscayl AI 模型",
                 "type": "string",
                 "default": "自动 (CV特征识别)",
+                "hint": "选择 AI 升图调用的模型。选择「自动 (CV特征识别)」将由算法自动匹配二次元或照片模型。",
                 "options": [
                     "自动 (CV特征识别)",
                     "二次元 (digital-art-4x)",
@@ -656,6 +657,34 @@
                     "轻量 (upscayl-lite-4x)",
                     "标准 (upscayl-standard-4x)"
                 ]
+            },
+            "upscayl_double_pass": {
+                "description": "Upscayl 双重生图",
+                "type": "bool",
+                "default": true,
+                "hint": "开启后执行两次 AI 升图（Pass 1 -> Pass 2）获得最高精度；关闭后只升图一次（耗时直接砍半）。"
+            },
+            "upscayl_enable_taa": {
+                "description": "Upscayl TAA 模式",
+                "type": "bool",
+                "default": true,
+                "hint": "开启后传入 -x 参数，开启 TAA 抗锯齿模式以减少图像伪影。"
+            },
+            "upscayl_scale": {
+                "description": "Upscayl 生图倍数",
+                "type": "int",
+                "default": 2,
+                "min": 1,
+                "max": 4,
+                "hint": "设置单次生图的放大倍数（支持 1-4 倍，默认 2 倍）。"
+            },
+            "upscayl_max_resolution": {
+                "description": "AI 升图分辨率上限（px）",
+                "type": "int",
+                "default": 3840,
+                "min": 0,
+                "max": 16384,
+                "hint": "图片任一边超过此像素值时跳过 AI 升图，直接转码为 AVIF。填写 0 表示不设上限。默认 3840px（4K）。"
             },
             "max_image_mb": {
                 "description": "下载图片大小上限（MB），填写 0 表示不设上限",

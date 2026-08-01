@@ -96,7 +96,16 @@ class UpscaylUpscaler:
             logger.warning("⚠️ 判定图片质量发生异常: %s", str(e))
             return False, "通用", "ultrasharp-4x"
 
-    async def upscale_image(self, input_path: Path, request_id: str, override_model: str = None) -> Path:
+    async def upscale_image(
+        self,
+        input_path: Path,
+        request_id: str,
+        override_model: str = None,
+        *,
+        scale: int | None = None,
+        enable_taa: bool | None = None,
+        double_pass: bool | None = None,
+    ) -> Path:
         """异步执行 Upscayl 升图"""
         out_path = input_path.parent / f"{input_path.stem}_upscayl.png"
         if out_path.exists() and (time.time() - out_path.stat().st_mtime < 7 * 24 * 3600):
@@ -105,9 +114,9 @@ class UpscaylUpscaler:
 
         upscayl_bin = getattr(self.plugin, "upscayl_bin_path", "C:/Program Files/Upscayl/resources/bin/upscayl-bin.exe")
         models_dir = getattr(self.plugin, "upscayl_models_path", "C:/Program Files/Upscayl/resources/models")
-        scale = str(getattr(self.plugin, "upscayl_scale", 2))
-        enable_taa = getattr(self.plugin, "upscayl_enable_taa", True)
-        double_pass = getattr(self.plugin, "upscayl_double_pass", True)
+        scale = str(scale if scale is not None else getattr(self.plugin, "upscayl_scale", 2))
+        enable_taa = enable_taa if enable_taa is not None else getattr(self.plugin, "upscayl_enable_taa", True)
+        double_pass = double_pass if double_pass is not None else getattr(self.plugin, "upscayl_double_pass", True)
 
         # 核心拦截防御：先校验该路径在硬盘上是否存在！
         if not upscayl_bin or not Path(upscayl_bin).exists():

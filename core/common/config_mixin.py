@@ -226,6 +226,18 @@ class ConfigMixin:
         self.image_tool_model_name = str(
             self._get_config_value("image_tool_settings.model_name", self.upscayl_model_name)
         ).strip()
+        self.image_tool_upscayl_double_pass = bool(
+            self._get_config_value("image_tool_settings.upscayl_double_pass", True)
+        )
+        self.image_tool_upscayl_enable_taa = bool(
+            self._get_config_value("image_tool_settings.upscayl_enable_taa", True)
+        )
+        self.image_tool_upscayl_scale = min(
+            4, max(1, int(self._get_config_value("image_tool_settings.upscayl_scale", 2)))
+        )
+        self.image_tool_upscayl_max_resolution = max(
+            0, int(self._get_config_value("image_tool_settings.upscayl_max_resolution", 3840))
+        )
         
         # Upscayl 资源路径统一由通用设置管理；无有效设置时回退到插件 resources 目录。
         user_bin = str(

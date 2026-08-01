@@ -681,6 +681,7 @@ class BaseUtilsMixin:
         auto_upscale: tuple[str, str, str] | None = None,
         force_upscale_model: str | None = None,
         force_upscale_type: str = "未检测",
+        force_upscale_options: tuple[int, bool, bool] | None = None,
         compress_avif: bool = True,
         generate_preview: bool = True,
         manage_lock: bool = True,
@@ -710,6 +711,9 @@ class BaseUtilsMixin:
                     current_path,
                     request_id,
                     override_model=force_upscale_model,
+                    scale=force_upscale_options[0] if force_upscale_options else None,
+                    enable_taa=force_upscale_options[1] if force_upscale_options else None,
+                    double_pass=force_upscale_options[2] if force_upscale_options else None,
                 )
                 if candidate_path != current_path and candidate_path.exists():
                     await self._propagate_image_metadata(
@@ -718,9 +722,9 @@ class BaseUtilsMixin:
                         {
                             "operation": "ai_upscale",
                             "model": force_upscale_model,
-                            "scale": getattr(self, "upscayl_scale", None),
-                            "double_pass": getattr(self, "upscayl_double_pass", None),
-                            "taa": getattr(self, "upscayl_enable_taa", None),
+                            "scale": force_upscale_options[0] if force_upscale_options else getattr(self, "upscayl_scale", None),
+                            "double_pass": force_upscale_options[2] if force_upscale_options else getattr(self, "upscayl_double_pass", None),
+                            "taa": force_upscale_options[1] if force_upscale_options else getattr(self, "upscayl_enable_taa", None),
                         },
                     )
                     current_path = candidate_path

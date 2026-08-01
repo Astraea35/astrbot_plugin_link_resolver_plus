@@ -5,6 +5,7 @@ from pathlib import Path
 from urllib.parse import unquote
 
 import httpx
+from PIL import Image as PILImage
 from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent
 from astrbot.api.message_components import Image, Reply
@@ -178,6 +179,11 @@ class ImageToolMixin:
         model, _ = await self._select_image_tool_metadata(input_path, argument)
         return model
 
+    @staticmethod
+    def _image_dimensions(input_path: Path) -> tuple[int, int]:
+        with PILImage.open(input_path) as image:
+            return image.width, image.height
+
     async def _run_image_tool(self, event: AstrMessageEvent, command: str, upscale: bool):
         if not getattr(self, "image_tool_enabled", True):
             yield event.plain_result("独立图片工具已在插件配置中关闭。")
@@ -253,10 +259,23 @@ class ImageToolMixin:
                 target_model = None
                 upscaled_path = None
                 if upscale:
-                    model, image_type = await self._select_image_tool_metadata(
-                        input_path, argument
+                    width, height = self._image_dimensions(input_path)
+                    resolution_limit = getattr(
+                        self, "image_tool_upscayl_max_resolution", 3840
                     )
-                    target_model = model
+                    if resolution_limit > 0 and max(width, height) > resolution_limit:
+                        image_type = f"超过 AI 升图上限 ({width}x{height})"
+                        logger.info(
+                            "Image tool skipped AI upscale for %dx%d image; limit is %dpx",
+                            width,
+                            height,
+                            resolution_limit,
+                        )
+                    else:
+                        model, image_type = await self._select_image_tool_metadata(
+                            input_path, argument
+                        )
+                        target_model = model
 
                 (
                     result_path,
@@ -270,6 +289,11 @@ class ImageToolMixin:
                     f"image-tool-{input_path.stem}",
                     force_upscale_model=target_model,
                     force_upscale_type=image_type,
+                    force_upscale_options=(
+                        getattr(self, "image_tool_upscayl_scale", 2),
+                        getattr(self, "image_tool_upscayl_enable_taa", True),
+                        getattr(self, "image_tool_upscayl_double_pass", True),
+                    ),
                     generate_preview=False,
                     manage_lock=False,
                 )
