@@ -631,7 +631,7 @@ class BaseUtilsMixin:
     async def _ai_upscale_platform_image_with_metadata(self, image_path, request_id, enable_flag, threshold_attr, model_attr=None):
         """Apply AI upscaling and retain metadata for the shared result annotation."""
         if not getattr(self, enable_flag, True):
-            return image_path, False, "未检测", None
+            return image_path, False, "未检测", None, 0.0
         threshold = getattr(self, threshold_attr, 1080)
         model_setting = getattr(self, model_attr, "自动 (CV特征识别)") if model_attr else "自动 (CV特征识别)"
         try:
@@ -639,7 +639,7 @@ class BaseUtilsMixin:
                 image_path, threshold=threshold, model_setting=model_setting
             )
             if not need_upscale:
-                return image_path, False, img_type, recommended_model
+                return image_path, False, img_type, recommended_model, 0.0
 
             if getattr(self, "current_task_info", None) is None:
                 self.current_task_info = {
@@ -647,8 +647,10 @@ class BaseUtilsMixin:
                     "stage": "🎨 AI 升图中", "percent": "0.0%", "start_time": time.time()
                 }
 
+            upscale_start = time.perf_counter()
             async with self.heavy_task_lock:
                 upscaled_path = await self.upscaler.upscale_image(image_path, request_id, override_model=recommended_model)
+                upscale_duration = time.perf_counter() - upscale_start
                 if upscaled_path != image_path and upscaled_path.exists():
                     await self._propagate_image_metadata(
                         image_path,
@@ -661,14 +663,14 @@ class BaseUtilsMixin:
                             "taa": getattr(self, "upscayl_enable_taa", None),
                         },
                     )
-                    return upscaled_path, True, img_type, recommended_model
+                    return upscaled_path, True, img_type, recommended_model, upscale_duration
         except Exception as e:
             logger.warning("⚠️ AI 升图处理异常: %s", str(e))
-        return image_path, False, "未检测", None
+        return image_path, False, "未检测", None, 0.0
 
     async def _ai_upscale_platform_image(self, image_path, request_id, enable_flag, threshold_attr, model_attr=None):
         """Backward-compatible path-only interface for platform handlers."""
-        processed_path, _, _, _ = await self._ai_upscale_platform_image_with_metadata(
+        processed_path, _, _, _, _ = await self._ai_upscale_platform_image_with_metadata(
             image_path, request_id, enable_flag, threshold_attr, model_attr
         )
         return processed_path
@@ -685,13 +687,27 @@ class BaseUtilsMixin:
         compress_avif: bool = True,
         generate_preview: bool = True,
         manage_lock: bool = True,
-    ) -> tuple[Path | None, Path | None, bool, str, str | None, Path | None]:
+    ) -> tuple[
+        Path | None,
+        Path | None,
+        bool,
+        str,
+        str | None,
+        Path | None,
+        dict[str, float],
+    ]:
         """Run the shared image pipeline while keeping caller-specific choices explicit.
 
         ``auto_upscale`` is used by platform handlers and contains the enable,
         threshold, and model attribute names. ``force_upscale_model`` is used by
         manual commands. AVIF preview generation is optional for file-only tools.
         """
+        processing_start = time.perf_counter()
+        processing_timing = {
+            'ai_upscale': 0.0,
+            'transcode': 0.0,
+            'elapsed': 0.0,
+        }
         current_path = image_path
         preview_path: Path | None = None
         was_upscaled = False
@@ -731,11 +747,13 @@ class BaseUtilsMixin:
                     upscaled_path = candidate_path
                     was_upscaled = True
 
+            upscale_start = time.perf_counter()
             if manage_lock:
                 async with self.heavy_task_lock:
                     await _run_forced_upscale()
             else:
                 await _run_forced_upscale()
+            processing_timing['ai_upscale'] = time.perf_counter() - upscale_start
         elif auto_upscale is not None:
             enable_attr, threshold_attr, model_attr = auto_upscale
             if getattr(self, enable_attr, True):
@@ -744,6 +762,7 @@ class BaseUtilsMixin:
                     was_upscaled,
                     image_type,
                     target_model,
+                    upscale_duration,
                 ) = await self._ai_upscale_platform_image_with_metadata(
                     current_path,
                     request_id,
@@ -751,10 +770,12 @@ class BaseUtilsMixin:
                     threshold_attr,
                     model_attr,
                 )
+                processing_timing['ai_upscale'] = upscale_duration
                 if was_upscaled:
                     upscaled_path = current_path
 
         if compress_avif:
+            transcode_start = time.perf_counter()
             task_info = getattr(self, "current_task_info", None)
             if task_info is not None:
                 task_info["stage"] = "AVIF 转码处理中"
@@ -777,9 +798,11 @@ class BaseUtilsMixin:
 
             if avif_path is not None and avif_path != current_path:
                 current_path = avif_path
+            processing_timing['transcode'] = time.perf_counter() - transcode_start
         else:
             preview_path = current_path
 
+        processing_timing['elapsed'] = time.perf_counter() - processing_start
         return (
             current_path,
             preview_path,
@@ -787,6 +810,7 @@ class BaseUtilsMixin:
             image_type,
             target_model,
             upscaled_path,
+            processing_timing,
         )
 
     async def _process_image_collection(
@@ -798,10 +822,16 @@ class BaseUtilsMixin:
         *,
         auto_upscale: tuple[str, str, str] | None = None,
         compress_avif: bool = True,
-    ) -> tuple[list[Path], list[tuple[bool, str, str | None, Path | None]], list[Path]]:
+    ) -> tuple[
+        list[Path],
+        list[tuple[bool, str, str | None, Path | None, dict[str, float]]],
+        list[Path],
+    ]:
         """Process a platform image collection and update its message components."""
         processed_paths: list[Path] = []
-        annotations: list[tuple[bool, str, str | None, Path | None]] = []
+        annotations: list[
+            tuple[bool, str, str | None, Path | None, dict[str, float]]
+        ] = []
         avif_files: list[Path] = []
 
         for image_path in image_paths:
@@ -812,6 +842,7 @@ class BaseUtilsMixin:
                 image_type,
                 target_model,
                 upscaled_path,
+                processing_timing,
             ) = await self._process_image_file(
                 image_path,
                 request_id,
@@ -820,7 +851,15 @@ class BaseUtilsMixin:
             )
             processed_path = processed_path or image_path
             processed_paths.append(processed_path)
-            annotations.append((was_upscaled, image_type, target_model, upscaled_path))
+            annotations.append(
+                (
+                    was_upscaled,
+                    image_type,
+                    target_model,
+                    upscaled_path,
+                    processing_timing,
+                )
+            )
 
             if processed_path != image_path:
                 for index, media_path in enumerate(media_paths):

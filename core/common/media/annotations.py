@@ -55,6 +55,10 @@ def format_size_comparison(
     return " -> ".join(parts)
 
 
+def format_duration(seconds: float | int | None) -> str:
+    return f'{max(0.0, float(seconds or 0.0)):.2f}s'
+
+
 def format_image_processing_annotation(
     index: int,
     source_path: Path,
@@ -63,21 +67,46 @@ def format_image_processing_annotation(
     image_type: str | None = None,
     target_model: str | None = None,
     upscaled_path: Path | None = None,
+    timing: dict[str, float] | None = None,
 ) -> str:
     """Build one consistent image-processing annotation line for every platform."""
     image_label = image_type or "未检测"
     size_comparison = format_size_comparison(source_path, processed_path, upscaled_path)
+    timing = timing or {}
+    timing_label = '[耗时: AI升图 {} | 转码 {}]'.format(
+        format_duration(timing.get('ai_upscale')),
+        format_duration(timing.get('transcode')),
+    )
     if was_upscaled:
         model_label = MODEL_DISPLAY_NAMES.get(target_model, target_model or "未记录")
         return (
             f"  • 图 {index}: 🎨 已 AI 升图 [{image_label} | {model_label}] "
-            f"[{size_comparison}]"
+            f"[{size_comparison}] {timing_label}"
         )
-    return f"  • 图 {index}: ⚡ 原始画质 [{image_label}] [{size_comparison}]"
+    return f"  • 图 {index}: ⚡ 原始画质 [{image_label}] [{size_comparison}] {timing_label}"
 
 
-def build_image_processing_annotation_text(lines: list[str]) -> str | None:
+def build_image_processing_annotation_text(
+    lines: list[str],
+    timings: list[dict[str, float]] | None = None,
+) -> str | None:
     """Build the platform-neutral annotation message, or nothing for empty input."""
     if not lines:
         return None
+    if timings:
+        ai_total = sum(float(item.get('ai_upscale', 0.0) or 0.0) for item in timings)
+        transcode_total = sum(
+            float(item.get('transcode', 0.0) or 0.0) for item in timings
+        )
+        elapsed_total = sum(
+            float(item.get('elapsed', 0.0) or 0.0) for item in timings
+        )
+        lines = [
+            *lines,
+            '⏱️ 处理耗时汇总：AI升图总计 {} | 转码总计 {} | 总耗时 {}'.format(
+                format_duration(ai_total),
+                format_duration(transcode_total),
+                format_duration(elapsed_total),
+            ),
+        ]
     return "📊 图片 AI 升图处理标注：\n" + "\n".join(lines)

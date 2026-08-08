@@ -266,6 +266,7 @@ def draw_stat_badges(
     x_start: int,
     color: tuple[int, int, int],
     gap: int = 24,
+    fallback_fonts=None,
 ) -> int:
     """绘制统计徽章（播放量/点赞/评论等）
 
@@ -285,8 +286,10 @@ def draw_stat_badges(
     x = x_start
     for icon, value in stats.items():
         text = f"{icon} {value}"
-        draw_text_with_fallback(draw, (x, y), text, font, color, emoji_font)
-        x += get_text_width(font, text, emoji_font) + gap
+        draw_text_with_fallback(
+            draw, (x, y), text, font, color, emoji_font, fallback_fonts
+        )
+        x += get_text_width(font, text, emoji_font, fallback_fonts) + gap
     return x
 
 

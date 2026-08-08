@@ -285,10 +285,25 @@ class WeiboMixin:
                 if not getattr(self, "enable_global_ffmpeg_compress", True):
                     logger.info("ℹ️ 微博全局 AVIF 压缩未启用，跳过 AVIF 文件生成与发送")
 
-            annotation_text = build_image_processing_annotation_text([
-                format_image_processing_annotation(i + 1, source_path, processed_path, *image_processing_metadata[i])
-                for i, (source_path, processed_path) in enumerate(zip(source_image_paths, image_paths))
-            ])
+            annotation_lines = [
+                format_image_processing_annotation(
+                    i + 1,
+                    source_path,
+                    processed_path,
+                    *image_processing_metadata[i],
+                )
+                for i, (source_path, processed_path) in enumerate(
+                    zip(source_image_paths, image_paths)
+                )
+            ]
+            annotation_timings = [
+                metadata[4]
+                for metadata in image_processing_metadata[: len(annotation_lines)]
+            ]
+            annotation_text = build_image_processing_annotation_text(
+                annotation_lines,
+                annotation_timings,
+            )
             if annotation_text:
                 await event.send(MessageChain([Plain(annotation_text)]))
 

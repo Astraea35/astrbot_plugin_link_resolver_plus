@@ -116,6 +116,65 @@ def find_emoji_font() -> Path | None:
     return None
 
 
+def find_text_fallback_font_paths(
+    exclude: tuple[Path | None, ...] = (),
+) -> list[Path]:
+    user_fonts = get_user_font_paths()
+    managed_fonts = get_managed_font_paths()
+    candidates: list[Path] = []
+    if user_fonts.primary:
+        candidates.append(user_fonts.primary)
+    if managed_fonts_enabled() and managed_fonts.primary:
+        candidates.append(managed_fonts.primary)
+
+    candidates.extend(
+        Path(font)
+        for font in (
+            '/usr/share/fonts/opentype/noto/NotoSansSymbols2-Regular.ttf',
+            '/usr/share/fonts/truetype/noto/NotoSansSymbols2-Regular.ttf',
+            '/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf',
+            '/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc',
+            '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+            '/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf',
+            '/usr/share/fonts/truetype/freefont/FreeSans.ttf',
+            '/System/Library/Fonts/Apple Symbols.ttf',
+            '/System/Library/Fonts/Supplemental/Arial Unicode.ttf',
+            'C:/Windows/Fonts/seguisym.ttf',
+            'C:/Windows/Fonts/seguiemj.ttf',
+            'C:/Windows/Fonts/msyh.ttc',
+            'C:/Windows/Fonts/simhei.ttf',
+            'C:/Windows/Fonts/simsun.ttc',
+            'C:/Windows/Fonts/arial.ttf',
+        )
+    )
+
+    try:
+        import subprocess
+
+        for pattern in (':charset=2727', ':charset=1d17', ':lang=ja', ':lang=zh'):
+            result = subprocess.run(
+                ['fc-match', '-f', '%{file}', pattern],
+                capture_output=True,
+                text=True,
+                timeout=3,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                candidates.append(Path(result.stdout.strip()))
+    except Exception:
+        pass
+
+    excluded = {Path(path) for path in exclude if path}
+    result: list[Path] = []
+    seen: set[Path] = set()
+    for candidate in candidates:
+        if candidate in excluded or candidate in seen:
+            continue
+        seen.add(candidate)
+        if candidate.exists() and _font_path_loadable(candidate, 24):
+            result.append(candidate)
+    return result
+
+
 # endregion
 
 
@@ -149,11 +208,14 @@ def load_optional_font(
 def get_line_height(
     font: ImageFont.ImageFont,
     emoji_font: ImageFont.ImageFont | None = None,
+    fallback_fonts: list[ImageFont.ImageFont] | None = None,
 ) -> int:
     """获取行高。"""
     heights = [_get_font_metrics_height(font)]
     if emoji_font is not None:
         heights.append(_get_font_metrics_height(emoji_font))
+    for fallback_font in fallback_fonts or []:
+        heights.append(_get_font_metrics_height(fallback_font))
     return max(heights)
 
 
@@ -161,11 +223,14 @@ def get_text_width(
     font: ImageFont.ImageFont,
     text: str,
     emoji_font: ImageFont.ImageFont | None = None,
+    fallback_fonts: list[ImageFont.ImageFont] | None = None,
 ) -> int:
     """获取文本宽度。"""
     cursor = 0.0
     for cluster in _iter_text_clusters(text):
-        active_font = _choose_font_for_cluster(cluster, font, emoji_font)
+        active_font = _choose_font_for_cluster(
+            cluster, font, emoji_font, fallback_fonts
+        )
         cursor += float(active_font.getlength(cluster))
     return int(round(cursor))
 
@@ -175,6 +240,7 @@ def wrap_text(
     font: ImageFont.ImageFont,
     max_width: int,
     emoji_font: ImageFont.ImageFont | None = None,
+    fallback_fonts: list[ImageFont.ImageFont] | None = None,
 ) -> list[str]:
     """按字体链宽度逐 cluster 自动换行。"""
     if not text:
@@ -185,7 +251,11 @@ def wrap_text(
         current = ""
         for cluster in _iter_text_clusters(raw):
             candidate = current + cluster
-            if current and get_text_width(font, candidate, emoji_font) > max_width:
+            if (
+                current
+                and get_text_width(font, candidate, emoji_font, fallback_fonts)
+                > max_width
+            ):
                 lines.append(current)
                 current = cluster
             else:
@@ -202,6 +272,7 @@ def draw_text_with_fallback(
     font: ImageFont.ImageFont,
     fill: tuple[int, int, int],
     emoji_font: ImageFont.ImageFont | None = None,
+    fallback_fonts: list[ImageFont.ImageFont] | None = None,
 ) -> int:
     """使用主字体 + Emoji fallback 绘制一行文本。"""
     cursor = float(pos[0])
@@ -219,15 +290,23 @@ def draw_text_with_fallback(
             "fill": fill,
             "font": run_font,
         }
-        if run_is_emoji:
+        if run_is_emoji and run_font is emoji_font:
             kwargs["embedded_color"] = True
-        draw.text((int(round(cursor)), y), run_text, **kwargs)
+        try:
+            draw.text((int(round(cursor)), y), run_text, **kwargs)
+        except (TypeError, ValueError):
+            kwargs.pop('embedded_color', None)
+            draw.text((int(round(cursor)), y), run_text, **kwargs)
         cursor += float(run_font.getlength(run_text))
         run_text = ""
 
     for cluster in _iter_text_clusters(text):
-        active_is_emoji = bool(emoji_font and _looks_like_emoji(cluster))
-        active_font = emoji_font if active_is_emoji else font
+        active_font = _choose_font_for_cluster(
+            cluster, font, emoji_font, fallback_fonts
+        )
+        active_is_emoji = bool(
+            emoji_font and active_font is emoji_font and _looks_like_emoji(cluster)
+        )
         if run_text and (
             active_font is not run_font or active_is_emoji != run_is_emoji
         ):
@@ -282,10 +361,42 @@ def _choose_font_for_cluster(
     cluster: str,
     font: ImageFont.ImageFont,
     emoji_font: ImageFont.ImageFont | None,
+    fallback_fonts: list[ImageFont.ImageFont] | None = None,
 ) -> ImageFont.ImageFont:
+    candidates: list[ImageFont.ImageFont] = []
     if emoji_font and _looks_like_emoji(cluster):
-        return emoji_font
+        candidates.append(emoji_font)
+    candidates.append(font)
+    candidates.extend(fallback_fonts or [])
+    for candidate in candidates:
+        if _font_supports_cluster(candidate, cluster):
+            return candidate
     return font
+
+
+def _font_supports_cluster(font: ImageFont.ImageFont, cluster: str) -> bool:
+    return all(
+        _font_supports_char(font, char)
+        for char in cluster
+        if not _is_zero_width_character(char)
+    )
+
+
+def _font_supports_char(font: ImageFont.ImageFont, char: str) -> bool:
+    try:
+        mask = font.getmask(char)
+        replacement = font.getmask('\ufffd')
+        return mask.size != replacement.size or bytes(mask) != bytes(replacement)
+    except Exception:
+        return False
+
+
+def _is_zero_width_character(char: str) -> bool:
+    return (
+        _is_variation_selector(char)
+        or _is_skin_tone_modifier(char)
+        or char in ('\u200d', '\u20e3')
+    )
 
 
 def _iter_text_clusters(text: str):
@@ -378,6 +489,7 @@ __all__ = [
     "draw_text_with_fallback",
     "find_default_font",
     "find_emoji_font",
+    "find_text_fallback_font_paths",
     "get_line_height",
     "get_text_width",
     "load_font",

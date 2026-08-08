@@ -493,6 +493,7 @@ class XiaohongshuMixin:
         upscaled_path = None
         img_type = "未检测"
         target_model = None
+        processing_timing = {}
 
         (
             current_path,
@@ -501,6 +502,7 @@ class XiaohongshuMixin:
             img_type,
             target_model,
             upscaled_path,
+            processing_timing,
         ) = await BaseUtilsMixin._process_image_file(
             self,
             current_path,
@@ -514,7 +516,15 @@ class XiaohongshuMixin:
             generate_preview=True,
         )
 
-        return current_path, preview_path, was_upscaled, img_type, target_model, upscaled_path
+        return (
+            current_path,
+            preview_path,
+            was_upscaled,
+            img_type,
+            target_model,
+            upscaled_path,
+            processing_timing,
+        )
 
     # endregion
 
@@ -701,10 +711,19 @@ class XiaohongshuMixin:
             self.current_task_info["stage"] = "Post-processing"
             self.current_task_info["percent"] = "0.0%"
             upscale_annotations = []
+            processing_timings = []
             processed_results = []
 
             for i, img_path in enumerate(image_paths):
-                proc_path, preview_path, was_upscaled, img_type, target_model, upscaled_path = await self._post_process_xhs_image(
+                (
+                    proc_path,
+                    preview_path,
+                    was_upscaled,
+                    img_type,
+                    target_model,
+                    upscaled_path,
+                    processing_timing,
+                ) = await self._post_process_xhs_image(
                     img_path,
                     request_id,
                     index=i + 1,
@@ -729,8 +748,16 @@ class XiaohongshuMixin:
                     },
                 )
                 upscale_annotations.append(format_image_processing_annotation(
-                    i + 1, img_path, proc_path, was_upscaled, img_type, target_model, upscaled_path
+                    i + 1,
+                    img_path,
+                    proc_path,
+                    was_upscaled,
+                    img_type,
+                    target_model,
+                    upscaled_path,
+                    processing_timing,
                 ))
+                processing_timings.append(processing_timing)
 
                 display_path = preview_path if (preview_path and preview_path.exists()) else proc_path
                 processed_results.append((display_path, proc_path, was_upscaled))
@@ -750,7 +777,10 @@ class XiaohongshuMixin:
             image_paths = [r[0] for r in processed_results]
 
             if upscale_annotations:
-                annotation_text = build_image_processing_annotation_text(upscale_annotations)
+                annotation_text = build_image_processing_annotation_text(
+                    upscale_annotations,
+                    processing_timings,
+                )
                 try:
                     if annotation_text:
                         yield event.chain_result([Plain(annotation_text)])

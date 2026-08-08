@@ -25,6 +25,7 @@ from .utils import (
     get_text_width,
     load_font,
     load_optional_font,
+    find_text_fallback_font_paths,
     wrap_text,
 )
 
@@ -85,7 +86,7 @@ class UniversalCardRenderer:
     CORNER_RADIUS = 24
 
     # 图片限制
-    MAX_IMAGES = 9
+    MAX_IMAGES = 99
     MAX_IMAGE_HEIGHT = 900
     IMAGE_CORNER_RADIUS = 12
 
@@ -102,6 +103,9 @@ class UniversalCardRenderer:
         self.theme = theme
         self.font_path = font_path or find_default_font()
         self.emoji_font_path = find_emoji_font()
+        self.fallback_font_paths = find_text_fallback_font_paths(
+            (self.font_path, self.emoji_font_path)
+        )
 
         if not self.font_path:
             try:
@@ -120,6 +124,18 @@ class UniversalCardRenderer:
         self.text_emoji_font = load_optional_font(self.emoji_font_path, 24)
         self.meta_emoji_font = load_optional_font(self.emoji_font_path, 20)
         self.stats_emoji_font = load_optional_font(self.emoji_font_path, 18)
+        self.title_fallback_fonts = self._load_fallback_fonts(32)
+        self.text_fallback_fonts = self._load_fallback_fonts(24)
+        self.meta_fallback_fonts = self._load_fallback_fonts(20)
+        self.stats_fallback_fonts = self._load_fallback_fonts(18)
+
+    def _load_fallback_fonts(self, size: int) -> list:
+        fonts = []
+        for path in self.fallback_font_paths:
+            font = load_optional_font(path, size)
+            if font is not None:
+                fonts.append(font)
+        return fonts
 
     def render(self, data: CardData) -> Image.Image:
         """渲染卡片
@@ -134,10 +150,18 @@ class UniversalCardRenderer:
 
         # 文本换行
         title_lines = wrap_text(
-            data.title or "", self.title_font, content_width, self.title_emoji_font
+            data.title or "",
+            self.title_font,
+            content_width,
+            self.title_emoji_font,
+            self.title_fallback_fonts,
         )
         text_lines = wrap_text(
-            data.text or "", self.text_font, content_width, self.text_emoji_font
+            data.text or "",
+            self.text_font,
+            content_width,
+            self.text_emoji_font,
+            self.text_fallback_fonts,
         )
 
         # 准备图片
@@ -148,20 +172,32 @@ class UniversalCardRenderer:
 
         # 计算各部分高度
         gradient_height = self.GRADIENT_HEIGHT
-        meta_height = get_line_height(self.meta_font, self.meta_emoji_font)
+        meta_height = get_line_height(
+            self.meta_font, self.meta_emoji_font, self.meta_fallback_fonts
+        )
         title_height = (
-            len(title_lines) * get_line_height(self.title_font, self.title_emoji_font)
+            len(title_lines)
+            * get_line_height(
+                self.title_font, self.title_emoji_font, self.title_fallback_fonts
+            )
             if title_lines
             else 0
         )
         text_height = (
-            len(text_lines) * get_line_height(self.text_font, self.text_emoji_font)
+            len(text_lines)
+            * get_line_height(
+                self.text_font, self.text_emoji_font, self.text_fallback_fonts
+            )
             if text_lines
             else 0
         )
         grid_height = grid.height if grid else 0
         stats_height = (
-            get_line_height(self.stats_font, self.stats_emoji_font) if data.stats else 0
+            get_line_height(
+                self.stats_font, self.stats_emoji_font, self.stats_fallback_fonts
+            )
+            if data.stats
+            else 0
         )
 
         # 计算卡片总高度
@@ -203,6 +239,7 @@ class UniversalCardRenderer:
                 self.title_font,
                 self.theme.text_color,
                 self.title_emoji_font,
+                self.title_fallback_fonts,
             )
 
         if text_lines:
@@ -214,6 +251,7 @@ class UniversalCardRenderer:
                 self.text_font,
                 self.theme.text_color,
                 self.text_emoji_font,
+                self.text_fallback_fonts,
             )
 
         if grid:
@@ -231,6 +269,7 @@ class UniversalCardRenderer:
                 self.stats_emoji_font,
                 self.PADDING,
                 self.theme.meta_color,
+                fallback_fonts=self.stats_fallback_fonts,
             )
 
         # 添加阴影
@@ -271,10 +310,16 @@ class UniversalCardRenderer:
             self.meta_font,
             self.theme.accent_color,
             self.meta_emoji_font,
+            self.meta_fallback_fonts,
         )
 
         if author:
-            label_width = get_text_width(self.meta_font, label, self.meta_emoji_font)
+            label_width = get_text_width(
+                self.meta_font,
+                label,
+                self.meta_emoji_font,
+                self.meta_fallback_fonts,
+            )
             draw_text_with_fallback(
                 draw,
                 (self.PADDING + label_width + 12, y),
@@ -282,6 +327,7 @@ class UniversalCardRenderer:
                 self.meta_font,
                 self.theme.meta_color,
                 self.meta_emoji_font,
+                self.meta_fallback_fonts,
             )
 
     def _draw_lines(
@@ -292,12 +338,15 @@ class UniversalCardRenderer:
         font,
         fill: tuple[int, int, int],
         emoji_font=None,
+        fallback_fonts=None,
     ) -> int:
         """绘制多行文本，返回结束 y 坐标"""
         x, y = pos
-        line_height = get_line_height(font, emoji_font)
+        line_height = get_line_height(font, emoji_font, fallback_fonts)
         for line in lines:
-            draw_text_with_fallback(draw, (x, y), line, font, fill, emoji_font)
+            draw_text_with_fallback(
+                draw, (x, y), line, font, fill, emoji_font, fallback_fonts
+            )
             y += line_height
         return y
 

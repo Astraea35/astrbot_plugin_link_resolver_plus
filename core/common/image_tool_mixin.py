@@ -284,6 +284,7 @@ class ImageToolMixin:
                     image_type,
                     target_model,
                     upscaled_path,
+                    processing_timing,
                 ) = await self._process_image_file(
                     input_path,
                     f"image-tool-{input_path.stem}",
@@ -316,8 +317,12 @@ class ImageToolMixin:
                     image_type,
                     target_model,
                     upscaled_path,
+                    processing_timing,
                 )
-                annotation_text = build_image_processing_annotation_text([annotation])
+                annotation_text = build_image_processing_annotation_text(
+                    [annotation],
+                    [processing_timing],
+                )
                 if annotation_text:
                     yield event.plain_result(annotation_text)
         except Exception as exc:
