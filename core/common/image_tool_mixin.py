@@ -296,7 +296,9 @@ class ImageToolMixin:
                         getattr(self, "image_tool_upscayl_double_pass", True),
                     ),
                     generate_preview=False,
-                    manage_lock=False,
+                    manage_lock=bool(
+                        getattr(self, 'allow_ai_upscale_ffmpeg_concurrent', False)
+                    ),
                 )
                 avif_path = result_path
                 if not avif_path:

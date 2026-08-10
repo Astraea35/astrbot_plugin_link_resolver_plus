@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.7.7
+
+- 修复升图和ffmpeg并发开关不生效
+
 ## v1.7.6
 
 - allow_ai_upscale_ffmpeg_concurrent（开关，默认关闭）：控制 AI 升图和 FFmpeg 能否同时工作。关闭时两者互斥、不会同时运行；开启后可并行。ai_upscale_max_concurrent（1-8，默认 1）：AI 升图最多同时运行几个任务。ffmpeg_max_concurrent（1-8，默认 1）：FFmpeg 转码最多同时运行几个任务。

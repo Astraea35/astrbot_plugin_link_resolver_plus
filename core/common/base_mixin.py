@@ -90,6 +90,10 @@ class MediaConcurrencyController:
 
     @asynccontextmanager
     async def whole_job(self):
+        if self._allow_together(self.plugin):
+            yield
+            return
+
         async with self._condition:
             while True:
                 if self._active["job"] > 0:
