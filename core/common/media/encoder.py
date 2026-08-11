@@ -1,5 +1,7 @@
 ﻿# core/common/media/encoder.py
 import asyncio
+import hashlib
+import tempfile
 import time
 from pathlib import Path
 from astrbot.api import logger
@@ -9,6 +11,29 @@ from .process import monitor_process_percentage
 
 class MediaEncoder:
     """基于 FFmpeg 的异步媒体转码管道 (AV1/AVIF 压缩 & JPG 预览)"""
+
+    _MAX_OUTPUT_PATH_LENGTH = 240
+    _METADATA_SIDECAR_LENGTH = len(".metadata.json")
+
+    @classmethod
+    def _build_output_path(cls, input_path: Path, suffix: str) -> Path:
+        """Build an FFmpeg-safe output path for generated media."""
+        input_path = Path(input_path)
+        output_path = input_path.with_name(f"{input_path.stem}{suffix}")
+        max_path_length = cls._MAX_OUTPUT_PATH_LENGTH - cls._METADATA_SIDECAR_LENGTH
+        if len(str(output_path)) <= max_path_length:
+            return output_path
+
+        path_hash = hashlib.sha256(
+            str(input_path.resolve()).encode("utf-8")
+        ).hexdigest()[:16]
+        max_name_length = max_path_length - len(str(input_path.parent)) - 1
+        name_suffix = f"_{path_hash}{suffix}"
+        max_stem_length = max_name_length - len(name_suffix)
+        if max_stem_length > 0:
+            return input_path.with_name(f"{input_path.stem[:max_stem_length]}{name_suffix}")
+
+        return Path(tempfile.gettempdir()) / "astrbot-link-resolver-plus" / f"{path_hash}{suffix}"
 
     def __init__(self, plugin_instance):
         self.plugin = plugin_instance
@@ -22,7 +47,7 @@ class MediaEncoder:
     ) -> Path | None:
         """异步将图片压缩为 AVIF，严格完全对齐用户的 egFreeUI 预设命令参数"""
         ffmpeg_bin = getattr(self.plugin, "ffmpeg_bin_path", "ffmpeg")
-        output_path = input_path.parent / f"{input_path.stem}_av1.avif"
+        output_path = self._build_output_path(input_path, "_av1.avif")
         metadata_enabled = getattr(self.plugin, "preserve_image_metadata", True)
         metadata = (
             await asyncio.to_thread(self.metadata.ensure, input_path)
@@ -70,6 +95,7 @@ class MediaEncoder:
             str(output_path.resolve()),
         ]
         try:
+            await asyncio.to_thread(output_path.parent.mkdir, parents=True, exist_ok=True)
             orig_size = (await asyncio.to_thread(lambda: input_path.stat().st_size)) / 1024
             logger.info("🗜️ [FFmpeg] 开始 AV1 压缩: %s (%.1fKB)", input_path.name, orig_size)
             proc = await asyncio.create_subprocess_exec(
@@ -95,7 +121,7 @@ class MediaEncoder:
     async def generate_jpg_preview(self, image_path: Path, request_id: str) -> Path | None:
         """从图片生成轻量 JPG 预览图 (最长边 1920px)，防止合并转发直接发送 10MB+ 的 Upscayl PNG 原图"""
         ffmpeg_bin = getattr(self.plugin, "ffmpeg_bin_path", "ffmpeg")
-        preview_path = image_path.parent / f"{image_path.stem}_preview.jpg"
+        preview_path = self._build_output_path(image_path, "_preview.jpg")
         metadata_enabled = getattr(self.plugin, "preserve_image_metadata", True)
         metadata = (
             await asyncio.to_thread(self.metadata.ensure, image_path)
@@ -141,6 +167,7 @@ class MediaEncoder:
             str(preview_path.resolve()),
         ]
         try:
+            await asyncio.to_thread(preview_path.parent.mkdir, parents=True, exist_ok=True)
             proc = await asyncio.create_subprocess_exec(
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )

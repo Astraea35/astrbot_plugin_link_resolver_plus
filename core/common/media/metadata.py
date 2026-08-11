@@ -17,6 +17,8 @@ from PIL import ExifTags, Image
 
 SIDECAR_SUFFIX = ".metadata.json"
 _BINARY_INFO_KEYS = {"exif", "icc_profile", "xmp", "photoshop", "iptc", "adobe"}
+_FFMPEG_METADATA_VALUE_LIMIT = 512
+_FFMPEG_COMMENT_VALUE_LIMIT = 96
 
 
 def _json_value(value: Any) -> Any:
@@ -213,6 +215,12 @@ def _sidecar_path(path: Path) -> Path:
     return path.with_name(path.name + SIDECAR_SUFFIX)
 
 
+def _limited_ffmpeg_value(value: Any, limit: int = _FFMPEG_METADATA_VALUE_LIMIT) -> str:
+    """Keep FFmpeg metadata arguments within Windows command-line limits."""
+    text = str(value).replace("\x00", "")
+    return text[:limit]
+
+
 class ImageMetadataStore:
     """Persist complete metadata alongside generated images and expose common tags to FFmpeg."""
 
@@ -333,9 +341,6 @@ class ImageMetadataStore:
         metadata: dict[str, Any],
         processing: dict[str, Any] | None = None,
     ) -> list[str]:
-        public = self._public_metadata(metadata)
-        if processing:
-            public.setdefault("processing", []).append(_json_value(processing))
         source = metadata.get("source") or {}
         original = metadata.get("original") or {}
         capture = original.get("capture") or {}
@@ -359,11 +364,27 @@ class ImageMetadataStore:
         longitude = capture.get("longitude")
         if latitude is not None and longitude is not None:
             values["location"] = f"{latitude:.8f},{longitude:.8f}"
-        payload = json.dumps(public, ensure_ascii=False, separators=(",", ":"), default=str)
+        payload = json.dumps(
+            {
+                "source": {
+                    key: _limited_ffmpeg_value(source[key], _FFMPEG_COMMENT_VALUE_LIMIT)
+                    for key in ("platform", "url", "author", "title", "image_index", "image_count", "post_id")
+                    if source.get(key) is not None
+                },
+                "processing": {
+                    key: _limited_ffmpeg_value(value, _FFMPEG_COMMENT_VALUE_LIMIT)
+                    for key, value in (processing or {}).items()
+                    if key in {"operation", "format", "codec", "source_format"} and value is not None
+                },
+            },
+            ensure_ascii=False,
+            separators=(",", ":"),
+            default=str,
+        )
         args = ["-map_metadata", "0"]
         for key, value in values.items():
             if value is not None and value != "":
-                args.extend(["-metadata", f"{key}={value}"])
+                args.extend(["-metadata", f"{key}={_limited_ffmpeg_value(value)}"])
         args.extend(["-metadata", f"comment=astrbot-image-metadata:{payload}"])
         return args
 
