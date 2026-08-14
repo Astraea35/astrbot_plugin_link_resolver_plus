@@ -2,6 +2,6 @@ name: astrbot_plugin_link_resolver_plus
 display_name: 多平台无水印下载+AI升图+AVIF自动转码
 desc: "原生解析 B站/抖音/小红书/微博/X；扩展支持快手、视频号、知乎、YouTube、TikTok、Pixiv 等平台下载。"
 help: "支持多平台媒体下载、会话开关、重复链接防抖；原生五平台额外支持 CV 分类、Upscayl AI 升图与 AVIF 转码。"
-version: "1.7.8"
+version: "1.7.9"
 author: "Astraea35"
 repo: https://github.com/Astraea35/astrbot_plugin_link_resolver_plus

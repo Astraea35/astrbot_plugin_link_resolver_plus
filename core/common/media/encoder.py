@@ -75,7 +75,7 @@ class MediaEncoder:
                 return output_path
 
         # 🚀 100% 严格锁定你的预设命令:
-        # ffmpeg -hide_banner -y -i <输入文件> -map 0:v:0? -c:v:0 libaom-av1 -cpu-used:v:0 1 -crf:v:0 18 -still-picture 1 -row-mt 1 <输出文件>
+        # ffmpeg -hide_banner -y -i <输入文件> -map 0:v:0? -c:v:0 libaom-av1 -cpu-used:v:0 1 -crf:v:0 18 -b:v:0 0 -still-picture 1 -row-mt 1 <输出文件>
         cmd = [
             ffmpeg_bin,
             "-hide_banner",
@@ -85,6 +85,7 @@ class MediaEncoder:
             "-c:v:0", "libaom-av1",
             "-cpu-used:v:0", "1",
             "-crf:v:0", "18",
+            "-b:v:0", "0",
             "-still-picture", "1",
             "-row-mt", "1",
             *(

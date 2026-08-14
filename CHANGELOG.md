@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.7.9
+
+- 更新avif压制参数
+
 ## v1.7.8
 
 - 限制 FFmpeg 元数据参数长度，避免完整 EXIF/XMP JSON 进入命令行并触发 WinError 206；完整元数据仍保存在旁路 JSON，FFmpeg 保留基础映射。
