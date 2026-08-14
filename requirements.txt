@@ -7,3 +7,4 @@ numpy
 opencv-python-headless
 yt-dlp>=2025.12.8
 gallery-dl>=1.31.2
+gmssl>=3.2.2,<4.0.0

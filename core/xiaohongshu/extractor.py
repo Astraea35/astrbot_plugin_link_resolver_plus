@@ -101,8 +101,11 @@ class XiaohongshuResult:
     video_url: str | None
     cover_url: str | None
     source_url: str
-    live_photo_urls: list[str] = field(default_factory=list)  # 实况图 MP4 视频链接
+    live_photo_urls: list[str | None] = field(default_factory=list)  # 与图片索引对齐的实况图 MP4 链接
     note_id: str | None = None
+    image_url_candidates: list[list[str]] = field(default_factory=list)
+    video_urls: list[str] = field(default_factory=list)
+    live_photo_url_candidates: list[list[str]] = field(default_factory=list)
 
 
 class XiaohongshuParseError(RuntimeError):
@@ -274,26 +277,29 @@ class XiaohongshuExtractor:
             pre_user = preload_data.get("user") or {}
             author = pre_user.get("nickname") or pre_user.get("nickName") or pre_user.get("name")
 
-        # 图片列表 - 获取 URL、fileId 以及实况图 MP4 链接
+        # 图片列表：各数组只在确认图片地址后追加，以保持 file_id、实况视频与图片索引一致。
         image_list = note.get("imageList") or []
-        image_urls = []
-        file_ids = []
-        live_photo_urls = []
+        image_urls: list[str] = []
+        image_url_candidates: list[list[str]] = []
+        file_ids: list[str | None] = []
+        live_photo_urls: list[str | None] = []
+        live_photo_url_candidates: list[list[str]] = []
         for img in image_list:
-            if isinstance(img, dict):
-                img_url = self._get_original_image_url(img)
-                if img_url:
-                    image_urls.append(img_url)
-                file_id = self._get_file_id_from_image(img)
-                file_ids.append(file_id)
-
-                # 提取 Live Photo 实况图 MP4 视频链接
-                live_url = self._extract_live_photo_url(img)
-                if live_url:
-                    live_photo_urls.append(live_url)
+            if not isinstance(img, dict):
+                continue
+            image_candidates = self._extract_image_urls(img)
+            if not image_candidates:
+                continue
+            image_urls.append(image_candidates[0])
+            image_url_candidates.append(image_candidates)
+            file_ids.append(self._get_file_id_from_image(img))
+            live_candidates = self._extract_live_photo_urls(img)
+            live_photo_urls.append(live_candidates[0] if live_candidates else None)
+            live_photo_url_candidates.append(live_candidates)
 
         # 视频
-        video_url = self._extract_video_url(note)
+        video_urls = self._extract_video_urls(note)
+        video_url = video_urls[0] if video_urls else None
 
         # 封面（视频的第一帧或第一张图片）
         cover_url = None
@@ -319,17 +325,26 @@ class XiaohongshuExtractor:
             source_url=source_url,
             live_photo_urls=live_photo_urls,
             note_id=note_id,
+            image_url_candidates=image_url_candidates,
+            video_urls=video_urls,
+            live_photo_url_candidates=live_photo_url_candidates,
         )
 
-    def _get_original_image_url(self, img: dict[str, Any]) -> str | None:
-        """从图片对象获取最佳图片 URL"""
-        url = img.get("urlDefault") or img.get("url")
-        if not url:
-            return None
-        if "!" in url:
-            url = url.split("!", 1)[0]
-        return url
+    def _extract_image_urls(self, img: dict[str, Any]) -> list[str]:
+        candidates: list[str] = []
+        for key in ("urlDefault", "url", "urlPre"):
+            value = img.get(key)
+            if not isinstance(value, str) or not value:
+                continue
+            url = html.unescape(value).split("!", 1)[0].strip()
+            if url and url not in candidates:
+                candidates.append(url)
+        return candidates
 
+    def _get_original_image_url(self, img: dict[str, Any]) -> str | None:
+        """从图片对象获取最佳图片 URL。"""
+        candidates = self._extract_image_urls(img)
+        return candidates[0] if candidates else None
     def _get_file_id_from_image(self, img: dict[str, Any]) -> str | None:
         """从图片对象提取 fileId，用于构建原图 URL"""
         file_id = img.get("fileId") or img.get("file_id") or img.get("traceId")
@@ -346,31 +361,20 @@ class XiaohongshuExtractor:
         return file_id
 
     def _extract_live_photo_url(self, img: dict[str, Any]) -> str | None:
-        """从图片节点中提取 Live Photo 实况图 MP4 链接"""
-        if not isinstance(img, dict):
-            return None
+        candidates = self._extract_live_photo_urls(img)
+        return candidates[0] if candidates else None
 
-        # 1. 直接字段匹配
-        live_url = img.get("livePhotoUrl") or img.get("live_photo_url")
-        normalized = self._normalize_media_url(live_url)
-        if normalized:
-            return normalized
-
-        # 2. 嵌套 stream 节点匹配
-        stream = img.get("stream")
-        if isinstance(stream, dict):
-            for codec in ("h264", "h265", "av1", "h266"):
-                codec_streams = stream.get(codec)
-                if isinstance(codec_streams, list) and codec_streams:
-                    for item in codec_streams:
-                        if not isinstance(item, dict):
-                            continue
-                        normalized = self._extract_stream_url(item)
-                        if normalized:
-                            return normalized
-
-        return None
-
+    def _extract_live_photo_urls(self, img: dict[str, Any]) -> list[str]:
+        """提取 Live Photo 的主地址及全部备用地址。"""
+        candidates: list[str] = []
+        for value in (img.get("livePhotoUrl"), img.get("live_photo_url")):
+            url = self._normalize_media_url(value)
+            if url and url not in candidates:
+                candidates.append(url)
+        for url in self._extract_stream_urls(img.get("stream")):
+            if url not in candidates:
+                candidates.append(url)
+        return candidates
     @staticmethod
     def _extract_file_id_from_url(url: str) -> str | None:
         """从 URL 中提取 fileId"""
@@ -387,50 +391,60 @@ class XiaohongshuExtractor:
         return None
 
     def _extract_video_url(self, note: dict[str, Any]) -> str | None:
-        """提取视频URL"""
-        if note.get("type") != "video":
-            return None
+        urls = self._extract_video_urls(note)
+        return urls[0] if urls else None
 
+    def _extract_video_urls(self, note: dict[str, Any]) -> list[str]:
+        """按编码优先级提取视频主地址及备用地址。"""
+        if note.get("type") != "video":
+            return []
         video = note.get("video")
         if not isinstance(video, dict):
-            return None
-
+            return []
         media = video.get("media")
         if not isinstance(media, dict):
-            return None
-
-        stream = media.get("stream")
-        if not isinstance(stream, dict):
-            return None
-
-        # h265 无水印优先，其次 h264
-        for codec in ("h265", "h264", "av1", "h266"):
-            codec_streams = stream.get(codec)
-            if isinstance(codec_streams, list) and codec_streams:
-                for item in codec_streams:
-                    if not isinstance(item, dict):
-                        continue
-                    media_url = self._extract_stream_url(item)
-                    if media_url:
-                        logger.debug("🎬 小红书视频编码: %s", codec)
-                        return media_url
-
-        return None
+            return []
+        return self._extract_stream_urls(media.get("stream"), prefer_h265=True)
 
     @staticmethod
     def _extract_stream_url(stream_item: dict[str, Any]) -> str | None:
-        for key in ("masterUrl", "url", "backupUrl"):
-            media_url = XiaohongshuExtractor._normalize_media_url(stream_item.get(key))
-            if media_url:
-                return media_url
-        backup_urls = stream_item.get("backupUrls")
-        if isinstance(backup_urls, list):
-            for value in backup_urls:
-                media_url = XiaohongshuExtractor._normalize_media_url(value)
-                if media_url:
-                    return media_url
-        return None
+        urls = XiaohongshuExtractor._extract_stream_urls(stream_item)
+        return urls[0] if urls else None
 
+    @staticmethod
+    def _extract_stream_urls(
+        stream: Any, *, prefer_h265: bool = False
+    ) -> list[str]:
+        if not isinstance(stream, dict):
+            return []
+        codecs = (
+            ("h265", "h264", "av1", "h266")
+            if prefer_h265
+            else ("h264", "h265", "av1", "h266")
+        )
+        candidates: list[str] = []
+        for codec in codecs:
+            codec_streams = stream.get(codec)
+            if not isinstance(codec_streams, list):
+                continue
+            for item in codec_streams:
+                if not isinstance(item, dict):
+                    continue
+                values: list[object] = [
+                    item.get("masterUrl"),
+                    item.get("url"),
+                    item.get("backupUrl"),
+                ]
+                backup_urls = item.get("backupUrls")
+                if isinstance(backup_urls, list):
+                    values.extend(backup_urls)
+                elif isinstance(backup_urls, str):
+                    values.append(backup_urls)
+                for value in values:
+                    url = XiaohongshuExtractor._normalize_media_url(value)
+                    if url and url not in candidates:
+                        candidates.append(url)
+        return candidates
     @staticmethod
     def _normalize_media_url(value: object) -> str | None:
         if not isinstance(value, str):
