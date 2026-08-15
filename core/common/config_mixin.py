@@ -43,6 +43,8 @@ GENERAL_SETTING_SECTIONS = {
     "error_notify_mode": "runtime_behavior",
     "progress_report_interval": "runtime_behavior",
     "enable_ffmpeg_compress": "runtime_behavior",
+    "image_compress_format": "runtime_behavior",
+    "jxl_distance": "runtime_behavior",
     "preserve_image_metadata": "runtime_behavior",
     "ffmpeg_bin_path": "runtime_behavior",
     "debounce_seconds": "runtime_behavior",
@@ -360,6 +362,15 @@ class ConfigMixin:
 
         # 通用设置
         self.enable_global_ffmpeg_compress = bool(self._get_general_config_value("enable_ffmpeg_compress", True))
+        image_compress_format = str(
+            self._get_general_config_value("image_compress_format", "AVIF（高压缩度）")
+        ).strip()
+        self.image_compress_format = (
+            "JXL" if image_compress_format.upper().startswith("JXL") else "AVIF"
+        )
+        self.jxl_distance = str(
+            self._get_general_config_value("jxl_distance", "1.0")
+        ).strip()
         self.preserve_image_metadata = bool(
             self._get_general_config_value("preserve_image_metadata", True)
         )

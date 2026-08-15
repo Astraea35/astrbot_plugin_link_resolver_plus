@@ -300,21 +300,21 @@ class ImageToolMixin:
                         getattr(self, 'allow_ai_upscale_ffmpeg_concurrent', False)
                     ),
                 )
-                avif_path = result_path
-                if not avif_path:
-                    yield event.plain_result("AVIF 转码失败，请检查 FFmpeg 配置。")
+                compressed_path = result_path
+                if not compressed_path:
+                    yield event.plain_result("图片转码失败，请检查 FFmpeg 配置。")
                     return
 
                 task_info["stage"] = "发送文件"
                 task_info["percent"] = "100.0%"
-                if not await self._send_file_via_api(event, avif_path):
+                if not await self._send_file_via_api(event, compressed_path):
                     yield event.plain_result("文件发送失败，请检查当前协议适配器。")
                     return
 
                 annotation = format_image_processing_annotation(
                     1,
                     input_path,
-                    avif_path,
+                    compressed_path,
                     was_upscaled,
                     image_type,
                     target_model,
@@ -337,11 +337,11 @@ class ImageToolMixin:
                 self.current_task_info = None
 
     async def cmd_image_tool_upscale(self, event: AstrMessageEvent):
-        yield event.plain_result("已加入图片处理队列，正在执行 AI 升图和 AVIF 转码。")
+        yield event.plain_result("已加入图片处理队列，正在执行 AI 升图和图片转码。")
         async for result in self._run_image_tool(event, "升图", upscale=True):
             yield result
 
     async def cmd_image_tool_avif(self, event: AstrMessageEvent):
-        yield event.plain_result("已加入图片处理队列，正在执行 AVIF 转码。")
+        yield event.plain_result("已加入图片处理队列，正在执行图片转码。")
         async for result in self._run_image_tool(event, "avif", upscale=False):
             yield result

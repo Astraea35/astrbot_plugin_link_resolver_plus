@@ -758,14 +758,14 @@ class BaseUtilsMixin:
                         user_id = event.get_sender_id()
                         if user_id:
                             await call_action('upload_private_file', user_id=int(user_id), file=base64_uri, name=file_name)
-                    logger.info("📁 AVIF 文件已通过 Base64 API 成功发送: %s (%.1fKB)", file_name, len(file_bytes) / 1024)
+                    logger.info("📁 图片转码文件已通过 Base64 API 成功发送: %s (%.1fKB)", file_name, len(file_bytes) / 1024)
                     return True
                 except Exception as e_api:
                     logger.warning("⚠️ 通过 Base64 API 发送文件失败，改用 MessageChain 降级发送: %s", str(e_api))
 
             # 2. 降级方案：使用 MessageChain (从 astrbot.api.event 正确导入)
             await event.send(MessageChain([Comp.File.fromFileSystem(str(file_path.resolve()))]))
-            logger.info("📁 AVIF 文件已通过 MessageChain 降级发送: %s", file_name)
+            logger.info("📁 图片转码文件已通过 MessageChain 降级发送: %s", file_name)
             return True
 
         except Exception as e:
@@ -969,7 +969,7 @@ class BaseUtilsMixin:
             transcode_start = time.perf_counter()
             task_info = getattr(self, "current_task_info", None)
             if task_info is not None:
-                task_info["stage"] = "AVIF 转码处理中"
+                task_info["stage"] = "图片转码处理中"
                 task_info["percent"] = "0.0%"
 
             if generate_preview:
@@ -1068,7 +1068,7 @@ class BaseUtilsMixin:
                             str(display_path.resolve())
                         )
 
-            if processed_path.suffix.lower() == ".avif" and processed_path != image_path:
+            if processed_path.suffix.lower() in (".avif", ".jxl") and processed_path != image_path:
                 avif_files.append(processed_path)
 
         media_components[:] = [component for component in media_components if component is not None]

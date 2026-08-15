@@ -564,10 +564,26 @@
                         "max": 100
                     },
                     "enable_ffmpeg_compress": {
-                        "description": "全局 AVIF 压缩",
+                        "description": "全局图片压缩",
                         "type": "bool",
-                        "hint": "小红书/抖音/微博/X 平台的图片是否自动转为 AVIF 格式。关闭后图片保持原格式。",
+                        "hint": "小红书/抖音/微博/X 平台的图片是否自动转码为所选图片格式。关闭后图片保持原格式。",
                         "default": true
+                    },
+                    "image_compress_format": {
+                        "description": "图片压缩格式",
+                        "type": "string",
+                        "hint": "AVIF 为高压缩度；JXL 为高质量。",
+                        "default": "AVIF（高压缩度）",
+                        "options": [
+                            "AVIF（高压缩度）",
+                            "JXL（高质量）"
+                        ]
+                    },
+                    "jxl_distance": {
+                        "description": "自定义 JXL distance 值",
+                        "type": "string",
+                        "hint": "仅 JXL 生效，默认 1.0（视觉无损）。0：完全无损（自动切换为 Modular 编码模式）。0.5 ~ 0.8：极高保真（专业摄影、微小纹理/噪点极致保留）。1.0：视觉无损（JXL 官方推荐的通用高质量黄金分割点，体积与画质平衡极佳）。1.5 ~ 2.0：Web 高画质分发。PNG 图片固定采用 distance=0 无损压缩。",
+                        "default": "1.0"
                     },
                     "preserve_image_metadata": {
                         "description": "保留图片元数据",

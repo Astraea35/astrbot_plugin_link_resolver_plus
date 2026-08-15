@@ -807,7 +807,7 @@ class XiaohongshuMixin:
             self.current_task_info["total_img"] = len(image_paths)
             self.current_task_info["current_img"] = 0
 
-        # 后处理（AI 升图与 AVIF 转码）
+        # 后处理（AI 升图与图片转码）
         if image_paths and not result.video_url:
             self.current_task_info["stage"] = "Post-processing"
             self.current_task_info["percent"] = "0.0%"
@@ -869,7 +869,7 @@ class XiaohongshuMixin:
 
             for display_path, proc_path, was_upscaled in processed_results:
                 media_components.append(Image.fromFileSystem(str(display_path.resolve())))
-                if proc_path.suffix.lower() == '.avif':
+                if proc_path.suffix.lower() in ('.avif', '.jxl'):
                     avif_files_to_send.append(proc_path)
 
             # 重新追加 Live Photo 视频组件
@@ -989,13 +989,13 @@ class XiaohongshuMixin:
                         yield event.chain_result([video_component])
                         break
 
-        # 2. 独立后置发送高压 AVIF 原图文件
+        # 2. 独立后置发送高质量图片转码文件
         if avif_files_to_send:
             for avif_file in avif_files_to_send:
                 try:
                     await self._send_file_via_api(event, avif_file)
                 except Exception as e:
-                    logger.warning("⚠️ 独立发送 AVIF 文件失败 (%s): %s", avif_file.name, str(e))
+                    logger.warning("⚠️ 独立发送图片转码文件失败 (%s): %s", avif_file.name, str(e))
 
         timing["send"] = time.perf_counter() - send_start
 

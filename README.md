@@ -25,12 +25,13 @@
 * **魔改版**：针对低分辨率（低于设定阈值，默认 2160px）或模糊度不达标的图片，自动触发本地 Upscayl 双重 Pass 渲染与 TAA 抗锯齿，大幅提升画质。
 * **涵盖平台**：小红书、抖音、微博、X (Twitter)。
 
-### 3. 🗜️ FFmpeg libaom-av1 极高压 AVIF 格式转换 + JPG 预览
+### 3. 🗜️ FFmpeg AVIF/JXL 图片转码 + JPG 预览
 
 * **原版**：直接发送大图/原图，容易触发 QQ 图片体积超限。
 * **魔改版**：
-* 使用 FFmpeg `libaom-av1`（CRF 18）对图片进行无损/极高品质 AVIF 压缩，大幅削减体积。
-* **JPG 全图预览**：为 AVIF 文件同步生成 1920px 内联 JPG 预览图供 QQ 聊天界面直接展示，同时将高质 AVIF 以文件形式发送。
+* 可选 FFmpeg `libaom-av1`（CRF 18）AVIF 高压缩度，或 `libjxl` JXL 高质量转码。
+* JXL 的 PNG 输入固定无损（`distance=0`）；其他图片可用 `jxl_distance` 调节，默认 `1.0`（视觉无损）。
+* **JPG 全图预览**：为 AVIF/JXL 文件同步生成 1920px 内联 JPG 预览图供 QQ 聊天界面直接展示，同时将高质文件以附件形式发送。
 
 
 
@@ -75,8 +76,8 @@
 | --- | --- | --- |
 | **B站 (Bilibili)** | 视频解析、合并转发、画质/编码选择 | 新增：扫码登录生成 Cookie、`enable_auto_download` 自动下载开关 |
 | **小红书 (XHS)** | 无水印解析、多图下载、渲染卡片 | 新增：ONNX+CV 智能分类、Upscayl AI 升图、AVIF 极高压转换、JPG 内联预览、图文合并发送开关 |
-| **抖音 (Douyin)** | 视频/图集/动图解析、卡片/摘要 | 新增：图片 AI 升图检测、全平台图片 AVIF 压缩/JPG 预览 |
-| **微博 (Weibo)** | 长文展开、原图/高码率视频、Cookie 访客 | 新增：图片 AI 升图检测、AVIF 压缩、手动 Cookie 命令行交互与持久化 |
+| **抖音 (Douyin)** | 视频/图集/动图解析、卡片/摘要 | 新增：图片 AI 升图检测、全平台 AVIF/JXL 压缩与 JPG 预览 |
+| **微博 (Weibo)** | 长文展开、原图/高码率视频、Cookie 访客 | 新增：图片 AI 升图检测、AVIF/JXL 压缩、手动 Cookie 命令行交互与持久化 |
 | **X (Twitter)** | 推文/图片/视频解析、多媒体混合合并发送 | 新增：图片 AI 升图检测、修复异步下载后处理链路、全平台 AVIF 支持 |
 
 ---
@@ -105,7 +106,9 @@
 * `upscayl_scale` (int): 单次升图倍率，支持 `1-4` 倍，默认 `2` 倍。
 * `low_quality_threshold` (int): 低质量图片像素阈值，默认 `2160px`。
 * `upscayl_enable_taa` (bool): 是否启用 TAA 抗锯齿（`-x`），默认 `true`。
-* `enable_ffmpeg_compress` (bool): 是否开启图片全局 AVIF 压缩（默认 `true`）。
+* `enable_ffmpeg_compress` (bool): 是否开启全局图片压缩（默认 `true`）。
+* `image_compress_format` (string): 全局图片压缩格式，`AVIF（高压缩度）` 或 `JXL（高质量）`，默认 AVIF。
+* `jxl_distance` (string): JXL 有损质量参数，默认 `1.0`（视觉无损）；PNG 自动使用 `0`（无损）。
 * `allow_ai_upscale_ffmpeg_concurrent` (bool): 是否允许 AI 升图与 FFmpeg 转码同时运行，默认 `false`（两者互斥，避免同时吃满 CPU/GPU）。
 * `ai_upscale_max_concurrent` (int): AI 升图可同时运行的并行任务数，默认 `1`，范围 `1-8`。
 * `ffmpeg_max_concurrent` (int): FFmpeg 转码可同时运行的并行任务数，默认 `1`，范围 `1-8`。

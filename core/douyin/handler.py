@@ -514,7 +514,7 @@ class DouyinMixin:
                 )
                 avif_files_to_send.extend(avif_files)
                 if not getattr(self, "enable_global_ffmpeg_compress", True):
-                    logger.info("ℹ️ 抖音全局 AVIF 压缩未启用，跳过 AVIF 文件生成与发送")
+                    logger.info("ℹ️ 抖音全局图片压缩未启用，跳过转码文件生成与发送")
 
             annotation_lines = [
                 format_image_processing_annotation(
@@ -657,15 +657,15 @@ class DouyinMixin:
             )
             await event.send(MessageChain([direct_component]))
 
-        # 合并转发只包含可直接预览的图片；高质量 AVIF 通过文件接口单独发送。
+        # 合并转发只包含可直接预览的图片；高质量转码文件通过文件接口单独发送。
         if avif_files_to_send:
-            logger.info("📁 抖音准备独立发送 %d 个 AVIF 文件", len(avif_files_to_send))
+            logger.info("📁 抖音准备独立发送 %d 个图片转码文件", len(avif_files_to_send))
         for avif_file in avif_files_to_send:
             try:
                 if not await self._send_file_via_api(event, avif_file):
-                    logger.warning("⚠️ 抖音独立发送 AVIF 文件失败: %s", avif_file.name)
+                    logger.warning("⚠️ 抖音独立发送图片转码文件失败: %s", avif_file.name)
             except Exception as exc:
-                logger.warning("⚠️ 抖音独立发送 AVIF 文件失败 (%s): %s", avif_file.name, str(exc))
+                logger.warning("⚠️ 抖音独立发送图片转码文件失败 (%s): %s", avif_file.name, str(exc))
 
         timing["send"] = time.perf_counter() - send_start
         # endregion
