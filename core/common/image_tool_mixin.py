@@ -40,44 +40,88 @@ class ImageToolMixin:
         path.mkdir(parents=True, exist_ok=True)
         return path
 
-    async def _extract_image_url_for_tool(self, event: AstrMessageEvent) -> str | None:
-        message = getattr(getattr(event, "message_obj", None), "message", [])
-        for component in message:
-            if isinstance(component, Reply):
-                try:
-                    bot = getattr(event, "bot", None)
-                    call_action = getattr(bot, "call_action", None) or getattr(
-                        getattr(bot, "api", None), "call_action", None
-                    )
-                    if call_action:
-                        result = await call_action("get_msg", message_id=component.id)
-                        payload = result.get("message", []) if isinstance(result, dict) else []
-                        if isinstance(payload, list):
-                            for item in payload:
-                                image_url = self._image_url_from_component(item)
-                                if image_url:
-                                    return image_url
-                        elif isinstance(payload, str):
-                            match = re.search(r"\[CQ:image,[^\]]*?url=([^,\]]+)", payload)
-                            if match:
-                                return unquote(match.group(1))
-                except Exception as exc:
-                    logger.warning("Failed to extract image from reply: %s", exc)
+    @staticmethod
+    def _extract_cq_image_urls(text: str) -> list[str]:
+        if not text:
+            return []
+        urls: list[str] = []
+        for match in re.finditer(r"\[CQ:image,([^\]]+)\]", text):
+            params = match.group(1)
+            url_match = re.search(r"(?:^|,)url=([^,]+)", params)
+            if url_match:
+                urls.append(unquote(url_match.group(1)))
+            else:
+                file_match = re.search(r"(?:^|,)file=([^,]+)", params)
+                if file_match:
+                    val = unquote(file_match.group(1))
+                    if val.startswith(("http://", "https://", "file://")) or Path(val).is_file():
+                        urls.append(val)
+        return urls
 
+    async def _extract_image_urls_for_tool(self, event: AstrMessageEvent) -> list[str]:
+        message = getattr(getattr(event, "message_obj", None), "message", [])
+        urls: list[str] = []
+
+        for component in message:
+            if isinstance(component, Reply) or type(component).__name__ == "Reply":
+                reply_id = getattr(component, "id", None) or getattr(component, "message_id", None)
+                if reply_id:
+                    try:
+                        bot = getattr(event, "bot", None)
+                        call_action = getattr(bot, "call_action", None) or getattr(
+                            getattr(bot, "api", None), "call_action", None
+                        )
+                        if call_action:
+                            result = await call_action("get_msg", message_id=reply_id)
+                            payload = []
+                            raw_msg = ""
+                            if isinstance(result, dict):
+                                payload = result.get("message") or result.get("data", {}).get("message") or []
+                                raw_msg = result.get("raw_message") or result.get("data", {}).get("raw_message") or ""
+                            elif isinstance(result, list):
+                                payload = result
+                            else:
+                                raw_msg = str(result)
+
+                            if isinstance(payload, list):
+                                for item in payload:
+                                    image_url = self._image_url_from_component(item)
+                                    if image_url:
+                                        urls.append(image_url)
+                            elif isinstance(payload, str):
+                                urls.extend(self._extract_cq_image_urls(payload))
+
+                            if not urls and raw_msg:
+                                urls.extend(self._extract_cq_image_urls(raw_msg))
+                    except Exception as exc:
+                        logger.warning("Failed to extract image from reply: %s", exc)
+
+        # If replied message contained images, prioritize them
+        if urls:
+            return list(dict.fromkeys(urls))
+
+        # Check current message components
         for component in message:
             image_url = self._image_url_from_component(component)
             if image_url:
-                return image_url
+                urls.append(image_url)
 
-        raw_message = str(
-            getattr(getattr(event, "message_obj", None), "raw_message", "")
-            or getattr(event, "message_str", "")
-            or ""
-        )
-        match = re.search(r"\[CQ:image,[^\]]*?url=([^,\]]+)", raw_message)
-        if match:
-            return unquote(match.group(1))
-        return None
+        # Fallback to raw_message / message_str CQ codes
+        if not urls:
+            raw_message = str(
+                getattr(getattr(event, "message_obj", None), "raw_message", "")
+                or getattr(event, "message_str", "")
+                or ""
+            )
+            if raw_message:
+                urls.extend(self._extract_cq_image_urls(raw_message))
+
+        return list(dict.fromkeys(urls))
+
+    async def _extract_image_url_for_tool(self, event: AstrMessageEvent) -> str | None:
+        """Backward-compatible helper returning the first extracted image URL."""
+        urls = await self._extract_image_urls_for_tool(event)
+        return urls[0] if urls else None
 
     @staticmethod
     def _image_url_from_component(component) -> str | None:
@@ -92,12 +136,11 @@ class ImageToolMixin:
                         return str(value)
             return None
 
-        if not isinstance(component, Image):
-            return None
-        for key in ("url", "file", "path"):
-            value = getattr(component, key, None)
-            if value:
-                return str(value)
+        if isinstance(component, Image) or type(component).__name__ == "Image":
+            for key in ("url", "file", "path"):
+                value = getattr(component, key, None)
+                if value:
+                    return str(value)
         return None
 
     async def _download_tool_image(self, url: str) -> Path:
@@ -195,23 +238,22 @@ class ImageToolMixin:
             yield event.plain_result(f"未知升图模型。可用参数：{supported}")
             return
 
-        url = await self._extract_image_url_for_tool(event)
-        if not url:
-            yield event.plain_result(f"请引用一张图片后发送 /{command}。")
+        urls = await self._extract_image_urls_for_tool(event)
+        if not urls:
+            yield event.plain_result(f"请发送图片或引用包含图片的消息后发送 /{command}。")
             return
 
         self.image_tool_waiting = getattr(self, "image_tool_waiting", 0) + 1
         acquired = False
         task_info = None
         try:
-            # Keep /avif visible while its source image is being downloaded, just
-            # like a platform task is visible from the start of its pipeline.
+            total_images = len(urls)
             if getattr(self, "current_task_info", None) is None:
                 task_info = {
                     "title": "图片工具",
                     "user": str(event.get_sender_name() or event.get_sender_id()),
-                    "current_img": 1,
-                    "total_img": 1,
+                    "current_img": 0,
+                    "total_img": total_images,
                     "stage": "下载图片",
                     "percent": "0.0%",
                     "start_time": time.time(),
@@ -219,111 +261,148 @@ class ImageToolMixin:
                 self.current_task_info = task_info
 
             download_start = time.perf_counter()
-            logger.info("📥 图片工具下载开始 [1/1]")
-            input_path = await self._download_tool_image(url)
-            logger.info(
-                "📥 图片工具下载成功 [1/1]: size=%.1fKB, 耗时=%.2fs",
-                input_path.stat().st_size / 1024,
-                time.perf_counter() - download_start,
-            )
-            await self._prepare_image_metadata(
-                input_path,
-                {
-                    "platform": "image_tool",
-                    "url": url,
-                    "image_index": 1,
-                    "image_count": 1,
-                },
-            )
+            downloaded_images: list[tuple[str, Path]] = []
+            for i, url in enumerate(urls, start=1):
+                if task_info:
+                    task_info["current_img"] = i
+                    task_info["stage"] = f"下载图片 ({i}/{total_images})"
+                logger.info("📥 图片工具下载开始 [%d/%d]", i, total_images)
+                try:
+                    input_path = await self._download_tool_image(url)
+                    logger.info(
+                        "📥 图片工具下载成功 [%d/%d]: %s, size=%.1fKB, 耗时=%.2fs",
+                        i,
+                        total_images,
+                        input_path.name,
+                        input_path.stat().st_size / 1024,
+                        time.perf_counter() - download_start,
+                    )
+                    downloaded_images.append((url, input_path))
+                except Exception as exc:
+                    logger.warning("⚠️ 图片工具下载失败 [%d/%d]: %s", i, total_images, exc)
+
+            if not downloaded_images:
+                yield event.plain_result("图片下载失败，请检查图片链接或网络连接。")
+                return
+
+            for i, (url, input_path) in enumerate(downloaded_images, start=1):
+                await self._prepare_image_metadata(
+                    input_path,
+                    {
+                        "platform": "image_tool",
+                        "url": url,
+                        "image_index": i,
+                        "image_count": len(downloaded_images),
+                    },
+                )
+
             async with self.media_whole_job:
                 acquired = True
                 self.image_tool_waiting = max(0, self.image_tool_waiting - 1)
+                total_imgs = len(downloaded_images)
                 if task_info is None or getattr(self, "current_task_info", None) is not task_info:
                     task_info = {
-                        "title": input_path.name,
+                        "title": downloaded_images[0][1].name,
                         "user": str(event.get_sender_name() or event.get_sender_id()),
-                        "current_img": 1,
-                        "total_img": 1,
+                        "current_img": 0,
+                        "total_img": total_imgs,
                         "stage": "准备图片处理",
                         "percent": "0.0%",
                         "start_time": time.time(),
                     }
                     self.current_task_info = task_info
-                else:
+
+                annotations: list[str] = []
+                processing_timings: list[dict[str, float]] = []
+                send_failed_count = 0
+
+                for i, (url, input_path) in enumerate(downloaded_images, start=1):
                     task_info["title"] = input_path.name
-                    task_info["stage"] = "准备图片处理"
+                    task_info["current_img"] = i
+                    task_info["total_img"] = total_imgs
+                    task_info["stage"] = f"准备图片处理 ({i}/{total_imgs})"
+                    task_info["percent"] = "0.0%"
 
-                result_path = input_path
-                was_upscaled = False
-                image_type = "未检测"
-                target_model = None
-                upscaled_path = None
-                if upscale:
-                    width, height = self._image_dimensions(input_path)
-                    resolution_limit = getattr(
-                        self, "image_tool_upscayl_max_resolution", 3840
+                    result_path = input_path
+                    was_upscaled = False
+                    image_type = "未检测"
+                    target_model = None
+                    upscaled_path = None
+                    if upscale:
+                        width, height = self._image_dimensions(input_path)
+                        resolution_limit = getattr(
+                            self, "image_tool_upscayl_max_resolution", 3840
+                        )
+                        if resolution_limit > 0 and max(width, height) > resolution_limit:
+                            image_type = f"超过 AI 升图上限 ({width}x{height})"
+                            logger.info(
+                                "Image tool skipped AI upscale for %dx%d image [%d/%d]; limit is %dpx",
+                                width,
+                                height,
+                                i,
+                                total_imgs,
+                                resolution_limit,
+                            )
+                        else:
+                            model, image_type = await self._select_image_tool_metadata(
+                                input_path, argument
+                            )
+                            target_model = model
+
+                    (
+                        result_path,
+                        _preview_path,
+                        was_upscaled,
+                        image_type,
+                        target_model,
+                        upscaled_path,
+                        processing_timing,
+                    ) = await self._process_image_file(
+                        input_path,
+                        f"image-tool-{input_path.stem}_{i}",
+                        force_upscale_model=target_model,
+                        force_upscale_type=image_type,
+                        force_upscale_options=(
+                            getattr(self, "image_tool_upscayl_scale", 2),
+                            getattr(self, "image_tool_upscayl_enable_taa", True),
+                            getattr(self, "image_tool_upscayl_double_pass", True),
+                        ),
+                        generate_preview=False,
+                        manage_lock=bool(
+                            getattr(self, 'allow_ai_upscale_ffmpeg_concurrent', False)
+                        ),
                     )
-                    if resolution_limit > 0 and max(width, height) > resolution_limit:
-                        image_type = f"超过 AI 升图上限 ({width}x{height})"
-                        logger.info(
-                            "Image tool skipped AI upscale for %dx%d image; limit is %dpx",
-                            width,
-                            height,
-                            resolution_limit,
-                        )
-                    else:
-                        model, image_type = await self._select_image_tool_metadata(
-                            input_path, argument
-                        )
-                        target_model = model
+                    compressed_path = result_path
+                    if not compressed_path:
+                        logger.error("图片转码失败 [%d/%d]: %s", i, total_imgs, input_path.name)
+                        continue
 
-                (
-                    result_path,
-                    _preview_path,
-                    was_upscaled,
-                    image_type,
-                    target_model,
-                    upscaled_path,
-                    processing_timing,
-                ) = await self._process_image_file(
-                    input_path,
-                    f"image-tool-{input_path.stem}",
-                    force_upscale_model=target_model,
-                    force_upscale_type=image_type,
-                    force_upscale_options=(
-                        getattr(self, "image_tool_upscayl_scale", 2),
-                        getattr(self, "image_tool_upscayl_enable_taa", True),
-                        getattr(self, "image_tool_upscayl_double_pass", True),
-                    ),
-                    generate_preview=False,
-                    manage_lock=bool(
-                        getattr(self, 'allow_ai_upscale_ffmpeg_concurrent', False)
-                    ),
-                )
-                compressed_path = result_path
-                if not compressed_path:
-                    yield event.plain_result("图片转码失败，请检查 FFmpeg 配置。")
-                    return
+                    task_info["stage"] = f"发送文件 ({i}/{total_imgs})"
+                    task_info["percent"] = "100.0%"
+                    if not await self._send_file_via_api(event, compressed_path):
+                        send_failed_count += 1
+                        logger.warning("文件发送失败 [%d/%d]: %s", i, total_imgs, compressed_path.name)
 
-                task_info["stage"] = "发送文件"
-                task_info["percent"] = "100.0%"
-                if not await self._send_file_via_api(event, compressed_path):
+                    annotation = format_image_processing_annotation(
+                        i,
+                        input_path,
+                        compressed_path,
+                        was_upscaled,
+                        image_type,
+                        target_model,
+                        upscaled_path,
+                        processing_timing,
+                    )
+                    annotations.append(annotation)
+                    processing_timings.append(processing_timing)
+
+                if send_failed_count > 0 and send_failed_count == total_imgs:
                     yield event.plain_result("文件发送失败，请检查当前协议适配器。")
                     return
 
-                annotation = format_image_processing_annotation(
-                    1,
-                    input_path,
-                    compressed_path,
-                    was_upscaled,
-                    image_type,
-                    target_model,
-                    upscaled_path,
-                    processing_timing,
-                )
                 annotation_text = build_image_processing_annotation_text(
-                    [annotation],
-                    [processing_timing],
+                    annotations,
+                    processing_timings,
                 )
                 if annotation_text:
                     yield event.plain_result(annotation_text)

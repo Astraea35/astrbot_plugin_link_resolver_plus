@@ -249,7 +249,7 @@ class LinkResolverPlugin(
 
         await self._process_extended_urls(event, unique_links, is_from_card=True)
 
-    @filter.regex(r"^/?升图(?:\s+.*)?$", priority=100)
+    @filter.regex(r"^/?升图(?:\s+.*|\[CQ:.*)?$", priority=100)
     async def handle_image_tool_upscale(self, event: AstrMessageEvent):
         logger.info("[ImageTool] received /升图 command")
         async for result in self.cmd_image_tool_upscale(event):
