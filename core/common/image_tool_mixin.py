@@ -1,3 +1,4 @@
+import base64
 import hashlib
 import re
 import time
@@ -153,14 +154,28 @@ class ImageToolMixin:
             max_image_mb = legacy_max_bytes // 1048576 if legacy_max_bytes > 0 else 0
         max_image_mb = max(0, int(max_image_mb))
         max_bytes = max_image_mb * 1048576
-        local_path = Path(url.removeprefix("file://"))
-        if local_path.is_file():
-            content = local_path.read_bytes()
+        if url.startswith("data:image/"):
+            header, separator, encoded = url.partition(",")
+            if not separator or ";base64" not in header.lower():
+                raise ValueError("不支持的图片 Data URL 格式")
+            try:
+                content = base64.b64decode(encoded, validate=True)
+            except ValueError as exc:
+                raise ValueError("图片 Base64 数据无效") from exc
+        elif url.startswith("base64://"):
+            try:
+                content = base64.b64decode(url.removeprefix("base64://"), validate=True)
+            except ValueError as exc:
+                raise ValueError("图片 Base64 数据无效") from exc
         else:
-            async with httpx.AsyncClient(follow_redirects=True, timeout=30) as client:
-                response = await client.get(url)
-                response.raise_for_status()
-                content = response.content
+            local_path = Path(url.removeprefix("file://"))
+            if local_path.is_file():
+                content = local_path.read_bytes()
+            else:
+                async with httpx.AsyncClient(follow_redirects=True, timeout=30) as client:
+                    response = await client.get(url)
+                    response.raise_for_status()
+                    content = response.content
 
         if max_image_mb > 0 and len(content) > max_bytes:
             raise ValueError(f"图片大小超过限制（最大 {max_bytes // 1048576} MB）")

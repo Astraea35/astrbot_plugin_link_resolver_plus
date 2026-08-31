@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import sys
 import tempfile
 import unittest
@@ -286,6 +287,16 @@ class TestImageToolMixin(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(self.harness.processed_files), 2)
         for _, model in self.harness.processed_files:
             self.assertIsNone(model)
+
+    async def test_download_tool_image_decodes_base64_urls(self):
+        """Verify image data URLs and OneBot base64 URLs bypass HTTP downloads."""
+        image_path = self._create_dummy_image("base64-source.png")
+        image_bytes = image_path.read_bytes()
+        encoded = base64.b64encode(image_bytes).decode("ascii")
+
+        for url in (f"data:image/png;base64,{encoded}", f"base64://{encoded}"):
+            decoded_path = await self.harness._download_tool_image(url)
+            self.assertEqual(decoded_path.read_bytes(), image_bytes)
 
     async def test_run_image_tool_resolution_limit(self):
         """Verify image exceeding max resolution skips upscale."""
