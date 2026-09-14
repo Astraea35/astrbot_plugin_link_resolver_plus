@@ -12,6 +12,7 @@ from PIL import Image as PILImage
 
 from astrbot.api import logger
 
+from ..paths import get_default_animejanai_models_path
 from .classifier import cv2_imread_safe, get_classifier
 from .process import monitor_process_percentage
 
@@ -196,9 +197,11 @@ class UpscaylUpscaler:
                 str(getattr(self.plugin, "span_models_path", "") or ""),
             )
         if backend == "animejanai":
+            configured_models_dir = str(getattr(self.plugin, "animejanai_models_path", "") or "")
+            builtin_models_dir = get_default_animejanai_models_path()
             return (
                 str(getattr(self.plugin, "animejanai_bin_path", "") or sys.executable),
-                str(getattr(self.plugin, "animejanai_models_path", "") or ""),
+                configured_models_dir if Path(configured_models_dir).is_dir() else str(builtin_models_dir),
             )
         return (
             str(getattr(self.plugin, "upscayl_bin_path", "C:/Program Files/Upscayl/resources/bin/upscayl-bin.exe")),
