@@ -41,3 +41,25 @@ Downloads use a directory lock and uniquely named `.part` files so plugin
 reloads cannot overwrite each other's temporary data. Each verified asset is
 then atomically moved into the persistent instance directory. Model download or
 load failure leaves Rule V2 available and does not interrupt media parsing.
+
+## Local evaluation
+
+The classifier was exercised locally on 400 cached platform images without
+uploading any sample. On an RTX 5060 8GB system:
+
+- Rule V2 processed the set in 58.334 seconds. Its initial distribution was 28
+  `anime`, 18 `photo`, and 354 `uncertain`.
+- CLIP successfully reviewed 347 images. The final distribution was 364
+  `anime`, 24 `photo`, 1 `text_ui`, and 11 `uncertain`.
+- Cold DirectML session load took 0.705 seconds. The full mixed batch took
+  106.539 seconds, averaging 266.35 ms per image.
+- Reported GPU memory was 4067MB before load, 4254MB after load, 4312MB at peak,
+  and 4131MB after release.
+- Three separately checked AstrBot/UI screenshots were all classified as
+  `text_ui`.
+
+The cached set does not have human-authored ground-truth labels. These results
+verify the offline pipeline, DirectML stability, batching, and resource release,
+but do not establish the target photo/anime/UI misclassification percentages.
+A labeled local set is still required for a statistically valid error-rate
+report.
