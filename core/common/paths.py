@@ -178,7 +178,16 @@ def get_default_animejanai_models_path() -> Path:
 
 
 def get_persistent_animejanai_models_path() -> Path:
-    """获取不会随插件更新覆盖的 AnimeJaNai 模型目录。"""
+    """获取不会随插件或实例版本更新覆盖的 AnimeJaNai 模型目录。"""
+    for parent in get_plugin_root().parents:
+        if parent.name == "core" and (parent / "astrbot").is_dir():
+            return _ensure_dir(parent.parent / "models" / "animejanai")
+
+    return get_plugin_data_animejanai_models_path()
+
+
+def get_plugin_data_animejanai_models_path() -> Path:
+    """获取 v1.8.7 及以前使用的插件数据目录，用于一次性迁移。"""
     return _ensure_dir(_get_data_dir() / "models" / "animejanai")
 
 

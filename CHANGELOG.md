@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.8.8
+
+- AnimeJaNai 权重改存放在 AstrBot 实例根目录的 `models/animejanai`；自动迁移 v1.8.7 的插件数据目录和旧版插件资源，实例版本升级也不会覆盖模型。
+
 ## v1.8.7
 
 - AnimeJaNai 权重默认保存到插件数据目录；首次启动自动迁移旧版插件资源，后续 GitHub 更新不再覆盖模型文件。

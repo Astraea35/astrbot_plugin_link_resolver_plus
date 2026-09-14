@@ -18,6 +18,7 @@ from .paths import (
     get_default_span_models_path,
     get_default_upscayl_bin_path,
     get_default_upscayl_models_path,
+    get_plugin_data_animejanai_models_path,
     get_persistent_animejanai_models_path,
 )
 from ..xiaohongshu.render import XiaohongshuCardRenderer
@@ -379,6 +380,7 @@ class ConfigMixin:
         builtin_span_models = get_default_span_models_path()
         builtin_animejanai_models = get_default_animejanai_models_path()
         persistent_animejanai_models = get_persistent_animejanai_models_path()
+        legacy_animejanai_models = get_plugin_data_animejanai_models_path()
         builtin_hat_models = get_default_hat_models_path()
 
         if user_bin and Path(user_bin).is_file():
@@ -406,14 +408,19 @@ class ConfigMixin:
             else builtin_span_models.resolve() if builtin_span_models.is_dir() else user_span_models
         )
         self.animejanai_bin_path = user_animejanai_bin
-        if not any(persistent_animejanai_models.glob("*.onnx")) and builtin_animejanai_models.is_dir():
-            for source_model in builtin_animejanai_models.glob("*.onnx"):
-                destination_model = persistent_animejanai_models / source_model.name
-                try:
-                    shutil.copy2(source_model, destination_model)
-                    logger.info("📦 已迁移 AnimeJaNai 模型到持久目录: %s", destination_model)
-                except OSError as exc:
-                    logger.warning("⚠️ AnimeJaNai 模型迁移失败 %s: %s", source_model.name, exc)
+        if not any(persistent_animejanai_models.glob("*.onnx")):
+            for source_dir in (legacy_animejanai_models, builtin_animejanai_models):
+                if not source_dir.is_dir():
+                    continue
+                for source_model in source_dir.glob("*.onnx"):
+                    destination_model = persistent_animejanai_models / source_model.name
+                    try:
+                        shutil.copy2(source_model, destination_model)
+                        logger.info("📦 已迁移 AnimeJaNai 模型到实例目录: %s", destination_model)
+                    except OSError as exc:
+                        logger.warning("⚠️ AnimeJaNai 模型迁移失败 %s: %s", source_model.name, exc)
+                if any(persistent_animejanai_models.glob("*.onnx")):
+                    break
         self.animejanai_models_path = str(
             Path(user_animejanai_models).resolve()
             if user_animejanai_models and Path(user_animejanai_models).is_dir()
