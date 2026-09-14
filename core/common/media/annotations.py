@@ -11,6 +11,14 @@ MODEL_DISPLAY_NAMES = {
     "ultrasharp-4x": "超锐化 (ultrasharp-4x)",
     "upscayl-lite-4x": "轻量 (upscayl-lite-4x)",
     "upscayl-standard-4x": "标准 (upscayl-standard-4x)",
+    "realesr-animevideov3": "极速动漫 (AnimeVideoV3)",
+    "hfa2k-span-2x": "动漫自然 2x (HFA2k SPAN)",
+    "liveaction-v1-span-2x": "照片自然 2x (LiveActionV1 SPAN)",
+    "nomos8k-span-otf-medium": "照片自然 4x (Nomos8k SPAN)",
+    "animejanai-v3.1-balanced": "动漫高质量 (AnimeJaNai V3.1 Balanced)",
+    "animejanai-v3.1-sharp": "动漫高质量锐利 (AnimeJaNai V3.1 Sharp)",
+    "real-hat-gan-srx4": "最高质量 (Real HAT GAN x4)",
+    "real-hat-gan-srx4-sharper": "最高质量锐利 (Real HAT GAN x4 Sharper)",
 }
 
 

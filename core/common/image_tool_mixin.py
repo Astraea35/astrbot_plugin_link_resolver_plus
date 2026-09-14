@@ -30,6 +30,17 @@ COMMAND_MODEL_ALIASES = {
     "超锐化": "ultrasharp-4x",
     "轻量": "upscayl-lite-4x",
     "标准": "upscayl-standard-4x",
+    "AVV3": "realesr-animevideov3",
+    "avv3": "realesr-animevideov3",
+    "动漫自然": "hfa2k-span-2x",
+    "照片自然": "liveaction-v1-span-2x",
+    "照片4K": "nomos8k-span-otf-medium",
+    "AnimeJaNai": "animejanai-v3.1-balanced",
+    "animejanai": "animejanai-v3.1-balanced",
+    "AnimeJaNai锐利": "animejanai-v3.1-sharp",
+    "HATGAN": "real-hat-gan-srx4",
+    "hatgan": "real-hat-gan-srx4",
+    "HATGAN锐利": "real-hat-gan-srx4-sharper",
 }
 
 
@@ -237,6 +248,15 @@ class ImageToolMixin:
         model, _ = await self._select_image_tool_metadata(input_path, argument)
         return model
 
+    def _image_tool_uses_automatic_model(self, argument: str) -> bool:
+        """Return whether this request should use dynamic scale selection."""
+        if argument:
+            return self._resolve_command_model(argument) == "auto"
+
+        configured = str(getattr(self, "image_tool_model_name", "auto"))
+        resolved = UPSCAYL_MODEL_NAME_MAP.get(configured, configured)
+        return resolved == "auto" or "自动" in configured
+
     @staticmethod
     def _image_dimensions(input_path: Path) -> tuple[int, int]:
         with PILImage.open(input_path) as image:
@@ -364,6 +384,10 @@ class ImageToolMixin:
                             )
                             target_model = model
 
+                    automatic_model = upscale and self._image_tool_uses_automatic_model(
+                        argument
+                    )
+
                     (
                         result_path,
                         _preview_path,
@@ -377,7 +401,9 @@ class ImageToolMixin:
                         f"image-tool-{input_path.stem}_{i}",
                         force_upscale_model=target_model,
                         force_upscale_type=image_type,
-                        force_upscale_options=(
+                        force_upscale_options=None
+                        if automatic_model
+                        else (
                             getattr(self, "image_tool_upscayl_scale", 2),
                             getattr(self, "image_tool_upscayl_enable_taa", True),
                             getattr(self, "image_tool_upscayl_double_pass", True),

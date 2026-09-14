@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.8.4
+
+- AI 升图升级为 Upscayl/Real-ESRGAN 与 SPAN 双后端：自动识别动漫和照片，并按原图长边动态选择 2x/4x 模型，默认将输出长边限制为 3840px。
+- 自动动漫模型新增 HFA2k SPAN 2x 与 AnimeVideoV3 4x；自动照片模型新增 LiveActionV1 SPAN 2x 与 Nomos8k SPAN 4x。
+- 新增 AnimeJaNai V3.1 Balanced/Sharp 手动高质量档，随资源包提供非商业许可的 ONNX 权重；执行时需自行配置 ONNX/TensorRT/DirectML 运行器。
+- 新增 Real HAT GAN x4/Sharper 手动最高质量档的外部运行器接口；HAT 权重和运行器不随包提供，未配置时自动回退 Remacri。
+- `ultrasharp-4x` 不再参与自动路由，仍保留手动选择；原有 `digital-art-4x`、`remacri-4x`、`upscayl-lite-4x` 等模型继续作为兼容选项和故障回退。
+- 升图缓存键加入后端、模型、倍率和 TAA 状态，避免不同模型误用旧缓存；独立 `/升图 自动` 同样启用动态倍率和 3840px 输出保护。
+- 更新第三方授权说明，补充 AnimeJaNai、SPAN NCNN、LiveActionV1 与 Real-ESRGAN/AnimeVideoV3 的来源和许可证信息。
+
 ## v1.8.3
 
 - v1.8.3 自动更新

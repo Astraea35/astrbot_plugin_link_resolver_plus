@@ -171,7 +171,15 @@
                     "超混合平衡 (ultramix-balanced-4x)",
                     "超锐化 (ultrasharp-4x)",
                     "轻量 (upscayl-lite-4x)",
-                    "标准 (upscayl-standard-4x)"
+                    "标准 (upscayl-standard-4x)",
+                    "极速动漫 (realesr-animevideov3)",
+                    "动漫自然 2x (hfa2k-span-2x)",
+                    "照片自然 2x (liveaction-v1-span-2x)",
+                    "照片自然 4x (nomos8k-span-otf-medium)",
+                    "动漫高质量 (animejanai-v3.1-balanced)",
+                    "动漫高质量锐利 (animejanai-v3.1-sharp)",
+                    "最高质量 (real-hat-gan-srx4)",
+                    "最高质量锐利 (real-hat-gan-srx4-sharper)"
                 ]
             },
             "enable_ai_upscale": {
@@ -225,7 +233,15 @@
                     "超混合平衡 (ultramix-balanced-4x)",
                     "超锐化 (ultrasharp-4x)",
                     "轻量 (upscayl-lite-4x)",
-                    "标准 (upscayl-standard-4x)"
+                    "标准 (upscayl-standard-4x)",
+                    "极速动漫 (realesr-animevideov3)",
+                    "动漫自然 2x (hfa2k-span-2x)",
+                    "照片自然 2x (liveaction-v1-span-2x)",
+                    "照片自然 4x (nomos8k-span-otf-medium)",
+                    "动漫高质量 (animejanai-v3.1-balanced)",
+                    "动漫高质量锐利 (animejanai-v3.1-sharp)",
+                    "最高质量 (real-hat-gan-srx4)",
+                    "最高质量锐利 (real-hat-gan-srx4-sharper)"
                 ]
             },
             "enable_ai_upscale": {
@@ -267,7 +283,15 @@
                     "超混合平衡 (ultramix-balanced-4x)",
                     "超锐化 (ultrasharp-4x)",
                     "轻量 (upscayl-lite-4x)",
-                    "标准 (upscayl-standard-4x)"
+                    "标准 (upscayl-standard-4x)",
+                    "极速动漫 (realesr-animevideov3)",
+                    "动漫自然 2x (hfa2k-span-2x)",
+                    "照片自然 2x (liveaction-v1-span-2x)",
+                    "照片自然 4x (nomos8k-span-otf-medium)",
+                    "动漫高质量 (animejanai-v3.1-balanced)",
+                    "动漫高质量锐利 (animejanai-v3.1-sharp)",
+                    "最高质量 (real-hat-gan-srx4)",
+                    "最高质量锐利 (real-hat-gan-srx4-sharper)"
                 ]
             },
             "enable_ai_upscale": {
@@ -357,7 +381,15 @@
                     "超混合平衡 (ultramix-balanced-4x)",
                     "超锐化 (ultrasharp-4x)",
                     "轻量 (upscayl-lite-4x)",
-                    "标准 (upscayl-standard-4x)"
+                    "标准 (upscayl-standard-4x)",
+                    "极速动漫 (realesr-animevideov3)",
+                    "动漫自然 2x (hfa2k-span-2x)",
+                    "照片自然 2x (liveaction-v1-span-2x)",
+                    "照片自然 4x (nomos8k-span-otf-medium)",
+                    "动漫高质量 (animejanai-v3.1-balanced)",
+                    "动漫高质量锐利 (animejanai-v3.1-sharp)",
+                    "最高质量 (real-hat-gan-srx4)",
+                    "最高质量锐利 (real-hat-gan-srx4-sharper)"
                 ]
             },
             "enable_ai_upscale": {
@@ -415,6 +447,60 @@
                         "default": true,
                         "hint": "开启后传入 -x 参数，开启 TAA 抗锯齿模式以减少图像伪影。",
                         "type": "bool"
+                    },
+                    "span_bin_path": {
+                        "description": "SPAN NCNN 可执行文件路径",
+                        "type": "string",
+                        "default": "",
+                        "hint": "留空时自动使用插件 resources/bin/span-ncnn-vulkan.exe。"
+                    },
+                    "span_models_path": {
+                        "description": "SPAN 模型文件夹路径",
+                        "type": "string",
+                        "default": "",
+                        "hint": "留空时自动使用插件 resources/span_models。"
+                    },
+                    "auto_upscale_max_long_edge": {
+                        "description": "自动升图最大长边(px)",
+                        "type": "int",
+                        "default": 3840,
+                        "min": 512,
+                        "max": 16384,
+                        "hint": "自动模式根据原图尺寸选择 2x/4x，并将最终长边限制在此值。"
+                    },
+                    "animejanai_bin_path": {
+                        "description": "AnimeJaNai 外部运行器路径",
+                        "type": "string",
+                        "default": "",
+                        "hint": "用于 AnimeJaNai ONNX/TensorRT/DirectML 模型；留空时自动回退到旧动漫模型。"
+                    },
+                    "animejanai_models_path": {
+                        "description": "AnimeJaNai 模型文件夹路径",
+                        "type": "string",
+                        "default": ""
+                    },
+                    "animejanai_command_template": {
+                        "description": "AnimeJaNai 命令模板",
+                        "type": "string",
+                        "default": "",
+                        "hint": "可使用 {input} {output} {model} {scale} {models} 占位符。"
+                    },
+                    "hat_bin_path": {
+                        "description": "HATGAN 外部运行器路径",
+                        "type": "string",
+                        "default": "",
+                        "hint": "最高质量模型仅手动使用；留空时自动回退 Remacri。"
+                    },
+                    "hat_models_path": {
+                        "description": "HATGAN 模型文件夹路径",
+                        "type": "string",
+                        "default": ""
+                    },
+                    "hat_command_template": {
+                        "description": "HATGAN 命令模板",
+                        "type": "string",
+                        "default": "",
+                        "hint": "可使用 {input} {output} {model} {scale} {models} 占位符。"
                     }
                 }
             },
@@ -735,7 +821,15 @@
                     "超混合平衡 (ultramix-balanced-4x)",
                     "超锐化 (ultrasharp-4x)",
                     "轻量 (upscayl-lite-4x)",
-                    "标准 (upscayl-standard-4x)"
+                    "标准 (upscayl-standard-4x)",
+                    "极速动漫 (realesr-animevideov3)",
+                    "动漫自然 2x (hfa2k-span-2x)",
+                    "照片自然 2x (liveaction-v1-span-2x)",
+                    "照片自然 4x (nomos8k-span-otf-medium)",
+                    "动漫高质量 (animejanai-v3.1-balanced)",
+                    "动漫高质量锐利 (animejanai-v3.1-sharp)",
+                    "最高质量 (real-hat-gan-srx4)",
+                    "最高质量锐利 (real-hat-gan-srx4-sharper)"
                 ]
             },
             "upscayl_double_pass": {

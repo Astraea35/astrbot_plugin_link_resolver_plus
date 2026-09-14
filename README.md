@@ -7,7 +7,7 @@
 - 新增同会话重复链接防抖、扩展平台代理/Cookie、最大媒体数、下载超时和 `gallery-dl` 兜底配置。
 - 原有 B站、抖音、小红书、微博、X 继续使用原生解析与图片后处理流程，不会被通用下载器替代。
 
-本插件基于开源项目 [vacacia/astrbot_plugin_link_resolver](https://github.com/vacacia/astrbot_plugin_link_resolver) **v1.0.10** 版本进行深度定制与性能魔改。在保留原版对 B站、抖音、小红书、微博、X/Twitter 基础解析能力的基础上，新增了 **OpenCV视觉特征 智能分类、Upscayl AI 图像超分、FFmpeg AV1/AVIF 极致压缩、B站扫码登录、异步进度查询及异机部署文件传输适配** 等核心功能。
+本插件基于开源项目 [vacacia/astrbot_plugin_link_resolver](https://github.com/vacacia/astrbot_plugin_link_resolver) **v1.0.10** 版本进行深度定制与性能魔改。在保留原版对 B站、抖音、小红书、微博、X/Twitter 基础解析能力的基础上，新增了 **OpenCV 视觉特征智能分类、Upscayl/SPAN 双后端 AI 图像超分、FFmpeg AV1/AVIF 极致压缩、B站扫码登录、异步进度查询及异机部署文件传输适配** 等核心功能。
 
 ---
 
@@ -17,12 +17,15 @@
 
 * **原版**：小红书/图文内容下载后直接发送原图或固定处理。
 * **魔改版**：引入 OpenCV 视觉特征提取（饱和度、线稿边缘、平坦度）。
-* **效果**：自动识别图片类型，**二次元/插画** 自动调用 `digital-art-4x` 模型，**真实照片** 自动调用 `ultrasharp-4x` 模型，实现精准超分。
+* **效果**：自动识别图片类型，并结合原图尺寸选择模型和倍率。二次元/插画使用 `HFA2k SPAN 2x` 或 `AnimeVideoV3 4x`；真实照片使用 `LiveActionV1 SPAN 2x` 或 `Nomos8k SPAN 4x`。
+* **尺寸保护**：自动模式按图片长边动态选择 2x/4x，并将结果长边限制在 `3840px`（可配置）；已经达到上限的图片不再重复升图。
+* **兼容回退**：自动模型不可用或执行失败时，动漫回退 `digital-art-4x`，照片回退 `remacri-4x`。`ultrasharp-4x` 仍可手动选择，但不再用于自动路由。
 
-### 2. 🖼️ 全平台 Upscayl AI 图像超分 (全平台支持)
+### 2. 🖼️ 全平台双后端 AI 图像超分 (全平台支持)
 
 * **原版**：仅支持原图下载/转码发送。
-* **魔改版**：针对低分辨率（低于设定阈值，默认 2160px）或模糊度不达标的图片，自动触发本地 Upscayl 双重 Pass 渲染与 TAA 抗锯齿，大幅提升画质。
+* **魔改版**：针对低分辨率（低于设定阈值，默认 2160px）或模糊度不达标的图片，自动调用 Upscayl NCNN 或 SPAN NCNN 后端。自动模式使用单次推理与输出尺寸保护；旧 Upscayl 模型的双重 Pass 仅保留给手动模式。
+* **高质量手动档**：支持 `AnimeJaNai V3.1 Balanced/Sharp` 和 `Real HAT GAN x4/Sharper`。AnimeJaNai 权重随资源包提供，但需要自行配置 ONNX/TensorRT/DirectML 运行器；HATGAN 运行器和权重均需自行配置。
 * **涵盖平台**：小红书、抖音、微博、X (Twitter)。
 
 ### 3. 🗜️ FFmpeg AVIF/JXL 图片转码 + JPG 预览
@@ -89,6 +92,11 @@
 | `扫码登录B站` | 在聊天中生成 B站 登录二维码，扫码确认后自动保存 Cookie | `扫码登录B站` |
 | `下载B站 <链接>` | 手动触发 B站 视频下载（在关闭自动下载时可用） | `下载B站 [https://www.bilibili.com/video/BV1xxx](https://www.bilibili.com/video/BV1xxx)` |
 | `解析进度` / `升图进度` / `小红书进度` | 查询当前正在后台执行的 AI 升图/AVIF 压制/多图处理实时进度 | `/解析进度` |
+| `/升图 自动` | CV 分类后按尺寸自动选择 SPAN/AVV3 模型 | `/升图 自动` |
+| `/升图 AVV3` | 手动使用 AnimeVideoV3 极速动漫模型 | `/升图 AVV3` |
+| `/升图 动漫自然` / `/升图 照片自然` | 手动使用轻量 SPAN 2x 模型 | `/升图 照片自然` |
+| `/升图 AnimeJaNai` | 手动使用 AnimeJaNai V3.1 Balanced | `/升图 AnimeJaNai` |
+| `/升图 HATGAN` | 手动使用 Real HAT GAN 最高质量档 | `/升图 HATGAN` |
 
 ---
 
@@ -106,6 +114,11 @@
 * `upscayl_scale` (int): 单次升图倍率，支持 `1-4` 倍，默认 `2` 倍。
 * `low_quality_threshold` (int): 低质量图片像素阈值，默认 `2160px`。
 * `upscayl_enable_taa` (bool): 是否启用 TAA 抗锯齿（`-x`），默认 `true`。
+* `span_bin_path` / `span_models_path` (string): SPAN NCNN 运行器和模型目录；留空时自动使用插件 `resources` 中的内置文件。
+* `auto_upscale_max_long_edge` (int): 自动升图结果的最大长边，默认 `3840px`。
+* `animejanai_bin_path` / `animejanai_models_path` (string): AnimeJaNai 外部运行器和模型目录。
+* `animejanai_command_template` (string): AnimeJaNai 运行命令模板，支持 `{input}`、`{output}`、`{model}`、`{scale}`、`{models}` 占位符。
+* `hat_bin_path` / `hat_models_path` / `hat_command_template` (string): Real HAT GAN 外部运行器、权重目录和命令模板。
 * `enable_ffmpeg_compress` (bool): 是否开启全局图片压缩（默认 `true`）。
 * `image_compress_format` (string): 全局图片压缩格式，`AVIF（高压缩度）` 或 `JXL（高质量）`，默认 AVIF。
 * `jxl_distance` (string): JXL 有损质量参数，默认 `1.0`（视觉无损）；PNG 自动使用 `0`（无损）。
@@ -158,7 +171,11 @@
 
 FFmpeg：需安装系统环境变量中，或在配置项 ffmpeg_bin_path 中指定绝对路径。
 
-Upscayl：若使用 AI 升图功能，请在系统安装 Upscayl 官方客户端。默认会自动寻找 C:/Program Files/Upscayl/... 路径，非默认路径可在插件设置中自定义。
+Upscayl：若使用旧模型或 AVV3，请安装 Upscayl 官方客户端；默认会自动寻找 `C:/Program Files/Upscayl/...`，也可使用插件 `resources` 中的运行器与模型。
+
+配套资源：将发布包中的 `resources.zip` 解压到插件根目录，最终应存在 `resources/bin`、`resources/models`、`resources/span_models`、`resources/animejanai_models` 和 `resources/licenses`。SPAN 与 AVV3 可直接使用；AnimeJaNai 仍需配置外部推理运行器。
+
+AnimeJaNai 模型由 [the-database/mpv-AnimeJaNai](https://github.com/the-database/mpv-AnimeJaNai) 提供，采用 `CC BY-NC-SA 4.0`：允许公开分享和非商业使用，但必须署名、保留许可证、标注修改，衍生版本需使用相同许可证。完整文本位于 `resources/licenses/AnimeJaNai-LICENSE.txt`。本插件及作者不主张这些模型权重的所有权；若未来用于收费服务、商业机器人或其他变现用途，请先移除该模型或另行取得授权。
 
 ```bash
 git clone [https://github.com/Astraea35/astrbot_plugin_link_resolver_plus.git](https://github.com/Astraea35/astrbot_plugin_link_resolver_plus.git)

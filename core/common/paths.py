@@ -162,5 +162,25 @@ def get_default_upscayl_models_path() -> Path:
     return get_plugin_root() / "resources" / "models"
 
 
+def get_default_span_bin_path() -> Path:
+    """获取默认内置 SPAN NCNN 可执行文件路径"""
+    return get_plugin_root() / "resources" / "bin" / "span-ncnn-vulkan.exe"
+
+
+def get_default_span_models_path() -> Path:
+    """获取默认内置 SPAN 模型目录"""
+    return get_plugin_root() / "resources" / "span_models"
+
+
+def get_default_animejanai_models_path() -> Path:
+    """获取默认 AnimeJaNai 模型目录"""
+    return get_plugin_root() / "resources" / "animejanai_models"
+
+
+def get_default_hat_models_path() -> Path:
+    """获取默认 HAT 模型目录"""
+    return get_plugin_root() / "resources" / "hat_models"
+
+
 # endregion
 # endregion

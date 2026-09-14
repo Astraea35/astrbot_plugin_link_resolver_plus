@@ -130,7 +130,9 @@ class MockHarness(ImageToolMixin):
         generate_preview=False,
         manage_lock=True,
     ):
-        self.processed_files.append((image_path, force_upscale_model))
+        self.processed_files.append(
+            (image_path, force_upscale_model, force_upscale_options)
+        )
         out_path = self._cache_dir / f"{image_path.stem}_upscaled.avif"
         out_path.write_bytes(b"upscaled_and_avif_content")
         return (
@@ -264,8 +266,24 @@ class TestImageToolMixin(unittest.IsolatedAsyncioTestCase):
             results.append(res)
 
         self.assertEqual(len(self.harness.processed_files), 2)
-        for _, model in self.harness.processed_files:
+        for _, model, options in self.harness.processed_files:
             self.assertEqual(model, "high-fidelity-4x")
+            self.assertEqual(options, (2, True, True))
+
+    async def test_automatic_model_uses_dynamic_scale_options(self):
+        """Automatic selection must let the upscaler choose and cap the scale."""
+        image = self._create_dummy_image("auto.png")
+        event = DummyEvent(
+            message_components=[Image(url=f"file://{image.as_posix()}")],
+            message_str="/升图",
+        )
+
+        async for _ in self.harness.cmd_image_tool_upscale(event):
+            pass
+
+        _, model, options = self.harness.processed_files[0]
+        self.assertEqual(model, "digital-art-4x")
+        self.assertIsNone(options)
 
     async def test_run_image_tool_avif_command(self):
         """Verify /avif transcodes multiple images without upscale."""
@@ -285,7 +303,7 @@ class TestImageToolMixin(unittest.IsolatedAsyncioTestCase):
             results.append(res)
 
         self.assertEqual(len(self.harness.processed_files), 2)
-        for _, model in self.harness.processed_files:
+        for _, model, _ in self.harness.processed_files:
             self.assertIsNone(model)
 
     async def test_download_tool_image_decodes_base64_urls(self):

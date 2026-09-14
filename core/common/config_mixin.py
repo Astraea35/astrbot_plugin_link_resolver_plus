@@ -11,6 +11,10 @@ from .font_manager import (
 )
 from .paths import (
     get_bili_cookies_file,
+    get_default_animejanai_models_path,
+    get_default_hat_models_path,
+    get_default_span_bin_path,
+    get_default_span_models_path,
     get_default_upscayl_bin_path,
     get_default_upscayl_models_path,
 )
@@ -29,6 +33,15 @@ GENERAL_SETTING_SECTIONS = {
     "upscayl_scale": "ai_upscale",
     "low_quality_threshold": "ai_upscale",
     "upscayl_enable_taa": "ai_upscale",
+    "span_bin_path": "ai_upscale",
+    "span_models_path": "ai_upscale",
+    "auto_upscale_max_long_edge": "ai_upscale",
+    "animejanai_bin_path": "ai_upscale",
+    "animejanai_models_path": "ai_upscale",
+    "animejanai_command_template": "ai_upscale",
+    "hat_bin_path": "ai_upscale",
+    "hat_models_path": "ai_upscale",
+    "hat_command_template": "ai_upscale",
     "retry_count": "message_behavior",
     "reaction_emoji_enabled": "message_behavior",
     "reaction_emoji_list": "message_behavior",
@@ -318,6 +331,12 @@ class ConfigMixin:
             self._get_general_config_value("upscayl_models_path", DEFAULT_UPSCAYL_MODELS_PATH
             )
         ).strip().strip('"').strip("'")
+        user_span_bin = str(self._get_general_config_value("span_bin_path", "")).strip().strip('"').strip("'")
+        user_span_models = str(self._get_general_config_value("span_models_path", "")).strip().strip('"').strip("'")
+        user_animejanai_bin = str(self._get_general_config_value("animejanai_bin_path", "")).strip().strip('"').strip("'")
+        user_animejanai_models = str(self._get_general_config_value("animejanai_models_path", "")).strip().strip('"').strip("'")
+        user_hat_bin = str(self._get_general_config_value("hat_bin_path", "")).strip().strip('"').strip("'")
+        user_hat_models = str(self._get_general_config_value("hat_models_path", "")).strip().strip('"').strip("'")
         self.low_quality_threshold = max(
             100,
             int(
@@ -342,9 +361,22 @@ class ConfigMixin:
                 ),
             ),
         )
+        self.auto_upscale_max_long_edge = max(
+            512, min(16384, int(self._get_general_config_value("auto_upscale_max_long_edge", 3840)))
+        )
+        self.animejanai_command_template = str(
+            self._get_general_config_value("animejanai_command_template", "")
+        ).strip()
+        self.hat_command_template = str(
+            self._get_general_config_value("hat_command_template", "")
+        ).strip()
 
         builtin_bin = get_default_upscayl_bin_path()
         builtin_models = get_default_upscayl_models_path()
+        builtin_span_bin = get_default_span_bin_path()
+        builtin_span_models = get_default_span_models_path()
+        builtin_animejanai_models = get_default_animejanai_models_path()
+        builtin_hat_models = get_default_hat_models_path()
 
         if user_bin and Path(user_bin).is_file():
             self.upscayl_bin_path = user_bin
@@ -359,6 +391,31 @@ class ConfigMixin:
             self.upscayl_models_path = str(builtin_models.resolve())
         else:
             self.upscayl_models_path = user_models or DEFAULT_UPSCAYL_MODELS_PATH
+
+        self.span_bin_path = str(
+            Path(user_span_bin).resolve()
+            if user_span_bin and Path(user_span_bin).is_file()
+            else builtin_span_bin.resolve() if builtin_span_bin.is_file() else user_span_bin
+        )
+        self.span_models_path = str(
+            Path(user_span_models).resolve()
+            if user_span_models and Path(user_span_models).is_dir()
+            else builtin_span_models.resolve() if builtin_span_models.is_dir() else user_span_models
+        )
+        self.animejanai_bin_path = user_animejanai_bin
+        self.animejanai_models_path = str(
+            Path(user_animejanai_models).resolve()
+            if user_animejanai_models and Path(user_animejanai_models).is_dir()
+            else builtin_animejanai_models.resolve()
+            if builtin_animejanai_models.is_dir()
+            else user_animejanai_models
+        )
+        self.hat_bin_path = user_hat_bin
+        self.hat_models_path = str(
+            Path(user_hat_models).resolve()
+            if user_hat_models and Path(user_hat_models).is_dir()
+            else builtin_hat_models.resolve() if builtin_hat_models.is_dir() else user_hat_models
+        )
 
         # 通用设置
         self.enable_global_ffmpeg_compress = bool(self._get_general_config_value("enable_ffmpeg_compress", True))
