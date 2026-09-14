@@ -173,8 +173,13 @@ def get_default_span_models_path() -> Path:
 
 
 def get_default_animejanai_models_path() -> Path:
-    """获取默认 AnimeJaNai 模型目录"""
+    """获取旧版随插件目录部署的 AnimeJaNai 模型目录。"""
     return get_plugin_root() / "resources" / "animejanai_models"
+
+
+def get_persistent_animejanai_models_path() -> Path:
+    """获取不会随插件更新覆盖的 AnimeJaNai 模型目录。"""
+    return _ensure_dir(_get_data_dir() / "models" / "animejanai")
 
 
 def get_default_hat_models_path() -> Path:

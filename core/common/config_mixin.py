@@ -1,5 +1,6 @@
 # core/common/config_mixin.py
 import re
+import shutil
 from pathlib import Path
 from astrbot.api import logger
 from .card_renderer import find_default_font, find_emoji_font
@@ -17,6 +18,7 @@ from .paths import (
     get_default_span_models_path,
     get_default_upscayl_bin_path,
     get_default_upscayl_models_path,
+    get_persistent_animejanai_models_path,
 )
 from ..xiaohongshu.render import XiaohongshuCardRenderer
 from ..extended_platforms import EXTENDED_PLATFORM_LABELS
@@ -376,6 +378,7 @@ class ConfigMixin:
         builtin_span_bin = get_default_span_bin_path()
         builtin_span_models = get_default_span_models_path()
         builtin_animejanai_models = get_default_animejanai_models_path()
+        persistent_animejanai_models = get_persistent_animejanai_models_path()
         builtin_hat_models = get_default_hat_models_path()
 
         if user_bin and Path(user_bin).is_file():
@@ -403,12 +406,18 @@ class ConfigMixin:
             else builtin_span_models.resolve() if builtin_span_models.is_dir() else user_span_models
         )
         self.animejanai_bin_path = user_animejanai_bin
+        if not any(persistent_animejanai_models.glob("*.onnx")) and builtin_animejanai_models.is_dir():
+            for source_model in builtin_animejanai_models.glob("*.onnx"):
+                destination_model = persistent_animejanai_models / source_model.name
+                try:
+                    shutil.copy2(source_model, destination_model)
+                    logger.info("📦 已迁移 AnimeJaNai 模型到持久目录: %s", destination_model)
+                except OSError as exc:
+                    logger.warning("⚠️ AnimeJaNai 模型迁移失败 %s: %s", source_model.name, exc)
         self.animejanai_models_path = str(
             Path(user_animejanai_models).resolve()
             if user_animejanai_models and Path(user_animejanai_models).is_dir()
-            else builtin_animejanai_models.resolve()
-            if builtin_animejanai_models.is_dir()
-            else user_animejanai_models
+            else persistent_animejanai_models.resolve()
         )
         self.hat_bin_path = user_hat_bin
         self.hat_models_path = str(

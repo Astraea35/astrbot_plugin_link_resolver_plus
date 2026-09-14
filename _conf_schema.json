@@ -464,12 +464,13 @@
                         "description": "AnimeJaNai 外部运行器路径",
                         "type": "string",
                         "default": "",
-                        "hint": "用于 AnimeJaNai ONNX/TensorRT/DirectML 模型；留空时自动回退到旧动漫模型。"
+                        "hint": "留空时使用插件内置 DirectML 运行器。"
                     },
                     "animejanai_models_path": {
                         "description": "AnimeJaNai 模型文件夹路径",
                         "type": "string",
-                        "default": ""
+                        "default": "",
+                        "hint": "留空时使用插件数据目录的持久模型文件夹，插件更新不会覆盖其中的权重。"
                     },
                     "animejanai_command_template": {
                         "description": "AnimeJaNai 命令模板",

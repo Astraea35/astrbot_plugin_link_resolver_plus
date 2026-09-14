@@ -173,7 +173,7 @@ FFmpeg：需安装系统环境变量中，或在配置项 ffmpeg_bin_path 中指
 
 Upscayl：若使用旧模型或 AVV3，请安装 Upscayl 官方客户端；默认会自动寻找 `C:/Program Files/Upscayl/...`，也可使用插件 `resources` 中的运行器与模型。
 
-配套资源：将发布包中的 `resources.zip` 解压到插件根目录，最终应存在 `resources/bin`、`resources/models`、`resources/span_models`、`resources/animejanai_models` 和 `resources/licenses`。SPAN 与 AVV3 可直接使用；AnimeJaNai 仍需配置外部推理运行器。
+配套资源：将发布包中的 `resources.zip` 解压到插件根目录，最终应存在 `resources/bin`、`resources/models`、`resources/span_models`、`resources/animejanai_models` 和 `resources/licenses`。首次启动时，AnimeJaNai 权重会自动迁移到插件数据目录的 `models/animejanai`；该目录不会被插件更新覆盖。SPAN 与 AVV3 可直接使用；Windows 上 AnimeJaNai 使用内置 DirectML 运行器。
 
 AnimeJaNai 模型由 [the-database/mpv-AnimeJaNai](https://github.com/the-database/mpv-AnimeJaNai) 提供，采用 `CC BY-NC-SA 4.0`：允许公开分享和非商业使用，但必须署名、保留许可证、标注修改，衍生版本需使用相同许可证。完整文本位于 `resources/licenses/AnimeJaNai-LICENSE.txt`。本插件及作者不主张这些模型权重的所有权；若未来用于收费服务、商业机器人或其他变现用途，请先移除该模型或另行取得授权。
 

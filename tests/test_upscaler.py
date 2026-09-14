@@ -141,6 +141,15 @@ class UpscalerRoutingTests(unittest.TestCase):
         self.assertTrue(command[2].endswith("input image.png"))
         self.assertEqual(command[-2:], ["--scale", "2"])
 
+    def test_animejanai_uses_persistent_model_directory_by_default(self):
+        with tempfile.TemporaryDirectory() as directory:
+            module = sys.modules[UpscaylUpscaler.__module__]
+            with patch.object(module, "get_persistent_animejanai_models_path", return_value=Path(directory)):
+                binary, models_dir = self.upscaler._backend_paths("animejanai")
+
+        self.assertEqual(binary, sys.executable)
+        self.assertEqual(models_dir, directory)
+
     def test_automatic_output_is_capped_to_configured_long_edge(self):
         with tempfile.TemporaryDirectory() as directory:
             output_path = self._image(directory, "output.png", (6000, 3000))
