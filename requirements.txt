@@ -4,6 +4,7 @@ msgspec
 Pillow
 aiohttp
 numpy
+onnxruntime-directml>=1.24.4; sys_platform == "win32"
 opencv-python-headless
 yt-dlp>=2025.12.8
 gallery-dl>=1.31.2

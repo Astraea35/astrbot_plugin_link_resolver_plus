@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.8.5
+
+- AnimeJaNai Balanced 新增内置 DirectML 运行器和自动依赖，可直接使用本地 ONNX 权重；自动动漫路由优先 Balanced，AVV3 保留手动选择。
+- 移除未打包运行环境和权重的 HATGAN 选项；照片仍使用内置 Nomos8k SPAN 4x 高质量模型。
+
 ## v1.8.4
 
 - AI 升图升级为 Upscayl/Real-ESRGAN 与 SPAN 双后端：自动识别动漫和照片，并按原图长边动态选择 2x/4x 模型，默认将输出长边限制为 3840px。

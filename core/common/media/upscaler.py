@@ -2,6 +2,7 @@
 import asyncio
 import re
 import shlex
+import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -40,14 +41,11 @@ UPSCAYL_MODEL_NAME_MAP = {
     "照片自然 2x (liveaction-v1-span-2x)": "liveaction-v1-span-2x",
     "照片自然 4x (nomos8k-span-otf-medium)": "nomos8k-span-otf-medium",
     "动漫自然 2x (hfa2k-span-2x)": "hfa2k-span-2x",
-    "最高质量 (real-hat-gan-srx4)": "real-hat-gan-srx4",
-    "最高质量锐利 (real-hat-gan-srx4-sharper)": "real-hat-gan-srx4-sharper",
     "动漫高质量 (animejanai-v3.1-balanced)": "animejanai-v3.1-balanced",
     "动漫高质量锐利 (animejanai-v3.1-sharp)": "animejanai-v3.1-sharp",
     # Compatibility aliases emitted by pre-release configuration drafts.
     "自然照片 2x (liveaction-v1-span-2x)": "liveaction-v1-span-2x",
     "自然照片 4x (nomos8k-span-otf-medium)": "nomos8k-span-otf-medium",
-    "锐利质量 (real-hat-gan-srx4-sharper)": "real-hat-gan-srx4-sharper",
 }
 
 
@@ -65,14 +63,12 @@ MODEL_REGISTRY: dict[str, UpscaleModel] = {
     "liveaction-v1-span-2x": UpscaleModel("span", "photo", "remacri-4x", 2),
     "nomos8k-span-otf-medium": UpscaleModel("span", "photo", "remacri-4x", 4),
     "hfa2k-span-2x": UpscaleModel("span", "anime", "digital-art-4x", 2),
-    "real-hat-gan-srx4": UpscaleModel("hat", "photo", "remacri-4x", 4),
-    "real-hat-gan-srx4-sharper": UpscaleModel("hat", "photo", "remacri-4x", 4),
     # AnimeJaNai uses an externally configured ONNX/TensorRT/DirectML runner.
     "animejanai-v3.1-balanced": UpscaleModel("animejanai", "anime", "digital-art-4x", 2),
     "animejanai-v3.1-sharp": UpscaleModel("animejanai", "anime", "digital-art-4x", 2),
 }
 
-AUTO_ANIME_MODEL = "realesr-animevideov3"
+AUTO_ANIME_MODEL = "animejanai-v3.1-balanced"
 AUTO_PHOTO_MODEL = "nomos8k-span-otf-medium"
 CACHE_MAX_AGE_SECONDS = 7 * 24 * 3600
 
@@ -201,13 +197,8 @@ class UpscaylUpscaler:
             )
         if backend == "animejanai":
             return (
-                str(getattr(self.plugin, "animejanai_bin_path", "") or ""),
+                str(getattr(self.plugin, "animejanai_bin_path", "") or sys.executable),
                 str(getattr(self.plugin, "animejanai_models_path", "") or ""),
-            )
-        if backend == "hat":
-            return (
-                str(getattr(self.plugin, "hat_bin_path", "") or ""),
-                str(getattr(self.plugin, "hat_models_path", "") or ""),
             )
         return (
             str(getattr(self.plugin, "upscayl_bin_path", "C:/Program Files/Upscayl/resources/bin/upscayl-bin.exe")),
@@ -225,7 +216,7 @@ class UpscaylUpscaler:
         scale: int,
         enable_taa: bool,
     ) -> list[str]:
-        if spec.backend in {"animejanai", "hat"}:
+        if spec.backend == "animejanai":
             template = str(getattr(self.plugin, f"{spec.backend}_command_template", "") or "").strip()
             if template:
                 values = {
@@ -239,6 +230,21 @@ class UpscaylUpscaler:
                     return [part.format(**values).strip('"') for part in shlex.split(template, posix=False)]
                 except (KeyError, ValueError) as exc:
                     raise ValueError(f"{spec.backend} command template is invalid") from exc
+
+        if spec.backend == "animejanai":
+            runner = Path(__file__).with_name("animejanai_runner.py")
+            return [
+                binary,
+                str(runner),
+                "--input",
+                str(input_path.resolve()),
+                "--output",
+                str(output_path.resolve()),
+                "--model",
+                model_name,
+                "--models",
+                models_dir,
+            ]
 
         cmd = [binary, "-i", str(input_path.resolve()), "-o", str(output_path.resolve()), "-n", model_name, "-s", str(scale)]
         if spec.backend == "upscayl" and enable_taa:
@@ -299,7 +305,7 @@ class UpscaylUpscaler:
             selected_scale = max(1, int(scale))
 
         spec = self._model_spec(model_name)
-        if spec.backend in {"span", "animejanai", "hat"} and selected_scale != spec.native_scale:
+        if spec.backend in {"span", "animejanai"} and selected_scale != spec.native_scale:
             logger.info(
                 "📐 %s 模型 %s 固定使用原生 %dx 倍率",
                 spec.backend.upper(),

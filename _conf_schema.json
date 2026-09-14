@@ -177,9 +177,7 @@
                     "照片自然 2x (liveaction-v1-span-2x)",
                     "照片自然 4x (nomos8k-span-otf-medium)",
                     "动漫高质量 (animejanai-v3.1-balanced)",
-                    "动漫高质量锐利 (animejanai-v3.1-sharp)",
-                    "最高质量 (real-hat-gan-srx4)",
-                    "最高质量锐利 (real-hat-gan-srx4-sharper)"
+                    "动漫高质量锐利 (animejanai-v3.1-sharp)"
                 ]
             },
             "enable_ai_upscale": {
@@ -239,9 +237,7 @@
                     "照片自然 2x (liveaction-v1-span-2x)",
                     "照片自然 4x (nomos8k-span-otf-medium)",
                     "动漫高质量 (animejanai-v3.1-balanced)",
-                    "动漫高质量锐利 (animejanai-v3.1-sharp)",
-                    "最高质量 (real-hat-gan-srx4)",
-                    "最高质量锐利 (real-hat-gan-srx4-sharper)"
+                    "动漫高质量锐利 (animejanai-v3.1-sharp)"
                 ]
             },
             "enable_ai_upscale": {
@@ -289,9 +285,7 @@
                     "照片自然 2x (liveaction-v1-span-2x)",
                     "照片自然 4x (nomos8k-span-otf-medium)",
                     "动漫高质量 (animejanai-v3.1-balanced)",
-                    "动漫高质量锐利 (animejanai-v3.1-sharp)",
-                    "最高质量 (real-hat-gan-srx4)",
-                    "最高质量锐利 (real-hat-gan-srx4-sharper)"
+                    "动漫高质量锐利 (animejanai-v3.1-sharp)"
                 ]
             },
             "enable_ai_upscale": {
@@ -387,9 +381,7 @@
                     "照片自然 2x (liveaction-v1-span-2x)",
                     "照片自然 4x (nomos8k-span-otf-medium)",
                     "动漫高质量 (animejanai-v3.1-balanced)",
-                    "动漫高质量锐利 (animejanai-v3.1-sharp)",
-                    "最高质量 (real-hat-gan-srx4)",
-                    "最高质量锐利 (real-hat-gan-srx4-sharper)"
+                    "动漫高质量锐利 (animejanai-v3.1-sharp)"
                 ]
             },
             "enable_ai_upscale": {
@@ -827,9 +819,7 @@
                     "照片自然 2x (liveaction-v1-span-2x)",
                     "照片自然 4x (nomos8k-span-otf-medium)",
                     "动漫高质量 (animejanai-v3.1-balanced)",
-                    "动漫高质量锐利 (animejanai-v3.1-sharp)",
-                    "最高质量 (real-hat-gan-srx4)",
-                    "最高质量锐利 (real-hat-gan-srx4-sharper)"
+                    "动漫高质量锐利 (animejanai-v3.1-sharp)"
                 ]
             },
             "upscayl_double_pass": {

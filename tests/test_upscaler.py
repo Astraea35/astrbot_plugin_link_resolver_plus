@@ -87,7 +87,6 @@ class UpscalerRoutingTests(unittest.TestCase):
         self.assertEqual(MODEL_REGISTRY[AUTO_PHOTO_MODEL].backend, "span")
         self.assertEqual(MODEL_REGISTRY["liveaction-v1-span-2x"].native_scale, 2)
         self.assertEqual(MODEL_REGISTRY["hfa2k-span-2x"].native_scale, 2)
-        self.assertEqual(MODEL_REGISTRY["real-hat-gan-srx4"].backend, "hat")
         self.assertEqual(MODEL_REGISTRY["animejanai-v3.1-balanced"].backend, "animejanai")
         self.assertEqual(MODEL_REGISTRY["ultrasharp-4x"].backend, "upscayl")
 
@@ -122,7 +121,7 @@ class UpscalerRoutingTests(unittest.TestCase):
 
         self.assertNotEqual(anime, photo)
         self.assertNotEqual(anime, scaled)
-        self.assertIn("upscayl_realesr-animevideov3_4x", anime.name)
+        self.assertIn("animejanai_animejanai-v3.1-balanced_4x", anime.name)
 
     def test_animejanai_can_use_an_external_command_template(self):
         self.plugin.animejanai_command_template = '"runner.exe" --input "{input}" --output "{output}" --model {model} --scale {scale}'
@@ -141,23 +140,6 @@ class UpscalerRoutingTests(unittest.TestCase):
         self.assertEqual(command[1], "--input")
         self.assertTrue(command[2].endswith("input image.png"))
         self.assertEqual(command[-2:], ["--scale", "2"])
-
-    def test_hat_can_use_an_external_command_template(self):
-        self.plugin.hat_command_template = '"hat-runner.exe" --source "{input}" --result "{output}" --weights "{models}"'
-        command = self.upscaler._build_command(
-            "unused.exe",
-            "C:/models",
-            MODEL_REGISTRY["real-hat-gan-srx4"],
-            Path("C:/input.png"),
-            Path("C:/output.png"),
-            "real-hat-gan-srx4",
-            4,
-            False,
-        )
-
-        self.assertEqual(command[:2], ["hat-runner.exe", "--source"])
-        self.assertIn("--weights", command)
-        self.assertIn("C:/models", command)
 
     def test_automatic_output_is_capped_to_configured_long_edge(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -187,10 +169,7 @@ class UpscalerRoutingTests(unittest.TestCase):
         self.assertEqual(self.upscaler._run_model.await_args_list[0].args[3], 4)
 
     def test_external_models_are_forced_to_their_native_scale(self):
-        for model_name, requested_scale, expected_scale in (
-            ("animejanai-v3.1-balanced", 4, 2),
-            ("real-hat-gan-srx4", 2, 4),
-        ):
+        for model_name, requested_scale, expected_scale in (("animejanai-v3.1-balanced", 4, 2),):
             with self.subTest(model=model_name), tempfile.TemporaryDirectory() as directory:
                 input_path = self._image(directory, "input.png", (400, 300))
                 self.upscaler._run_model = AsyncMock(side_effect=[False, True])

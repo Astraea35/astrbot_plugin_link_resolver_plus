@@ -38,9 +38,6 @@ COMMAND_MODEL_ALIASES = {
     "AnimeJaNai": "animejanai-v3.1-balanced",
     "animejanai": "animejanai-v3.1-balanced",
     "AnimeJaNai锐利": "animejanai-v3.1-sharp",
-    "HATGAN": "real-hat-gan-srx4",
-    "hatgan": "real-hat-gan-srx4",
-    "HATGAN锐利": "real-hat-gan-srx4-sharper",
 }
 
 
