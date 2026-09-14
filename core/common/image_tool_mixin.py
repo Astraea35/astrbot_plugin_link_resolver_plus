@@ -15,6 +15,7 @@ from .media.annotations import (
     build_image_processing_annotation_text,
     format_image_processing_annotation,
 )
+from .media.classifier import ClassificationResult
 from .media.upscaler import UPSCAYL_MODEL_NAME_MAP
 from .paths import get_cache_path
 
@@ -212,8 +213,11 @@ class ImageToolMixin:
         return COMMAND_MODEL_ALIASES.get(argument)
 
     async def _select_image_tool_metadata(
-        self, input_path: Path, argument: str
-    ) -> tuple[str, str]:
+        self,
+        input_path: Path,
+        argument: str,
+        classification_hint: ClassificationResult | None = None,
+    ) -> tuple[str | None, str]:
         selected = self._resolve_command_model(argument)
         if selected and selected != "auto":
             return selected, f"手动指定({selected})"
@@ -237,6 +241,7 @@ class ImageToolMixin:
             input_path,
             threshold=getattr(self, "low_quality_threshold", 2160),
             model_setting="自动 (CV特征识别)",
+            classification_hint=classification_hint,
         )
         return recommended_model, image_type
 
@@ -328,6 +333,29 @@ class ImageToolMixin:
                     },
                 )
 
+            automatic_model = upscale and self._image_tool_uses_automatic_model(argument)
+            preselected_metadata: dict[Path, tuple[str | None, str]] = {}
+            classifier = getattr(self, "image_classifier", None)
+            if automatic_model and classifier is not None:
+                paths = [path for _, path in downloaded_images]
+                classifications = await classifier.classify_many(paths)
+                for path, classification in zip(paths, classifications):
+                    width, height = self._image_dimensions(path)
+                    resolution_limit = getattr(
+                        self, "image_tool_upscayl_max_resolution", 3840
+                    )
+                    if resolution_limit > 0 and max(width, height) > resolution_limit:
+                        preselected_metadata[path] = (
+                            None,
+                            f"超过 AI 升图上限 ({width}x{height})",
+                        )
+                    else:
+                        preselected_metadata[path] = await self._select_image_tool_metadata(
+                            path, argument, classification
+                        )
+                if any(model is not None for model, _ in preselected_metadata.values()):
+                    await classifier.release_before_upscale()
+
             async with self.media_whole_job:
                 acquired = True
                 self.image_tool_waiting = max(0, self.image_tool_waiting - 1)
@@ -376,14 +404,13 @@ class ImageToolMixin:
                                 resolution_limit,
                             )
                         else:
-                            model, image_type = await self._select_image_tool_metadata(
-                                input_path, argument
-                            )
+                            if input_path in preselected_metadata:
+                                model, image_type = preselected_metadata[input_path]
+                            else:
+                                model, image_type = await self._select_image_tool_metadata(
+                                    input_path, argument
+                                )
                             target_model = model
-
-                    automatic_model = upscale and self._image_tool_uses_automatic_model(
-                        argument
-                    )
 
                     (
                         result_path,

@@ -24,6 +24,18 @@ The full license is included in the companion resource archive at
 the model weights. Commercial use requires separate permission from the model
 rights holder.
 
+## LAION CLIP ViT-B/32
+
+The optional hybrid image classifier uses a vision-only FP16 ONNX subgraph
+derived from `laion/CLIP-ViT-B-32-laion2B-s34B-b79K`. The upstream model card
+declares the model under the MIT license. The ONNX source conversion is provided
+by `onnx-community/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX`.
+
+The model, precomputed prompt prototypes, attribution, MIT license text, and
+SHA256 manifest are distributed as separate GitHub Release assets and are not
+committed to the plugin repository. Runtime downloads are stored in the AstrBot
+instance-level `models/classifier` directory.
+
 ## SPAN NCNN Vulkan
 
 The bundled SPAN NCNN Vulkan executable is based on

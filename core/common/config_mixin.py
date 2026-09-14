@@ -49,6 +49,12 @@ GENERAL_SETTING_SECTIONS = {
     "hat_bin_path": "ai_upscale",
     "hat_models_path": "ai_upscale",
     "hat_command_template": "ai_upscale",
+    "hybrid_classifier_enabled": "image_classifier",
+    "classifier_provider": "image_classifier",
+    "classifier_models_path": "image_classifier",
+    "classifier_auto_download": "image_classifier",
+    "classifier_release_base_url": "image_classifier",
+    "classifier_idle_unload_seconds": "image_classifier",
     "retry_count": "message_behavior",
     "reaction_emoji_enabled": "message_behavior",
     "reaction_emoji_list": "message_behavior",
@@ -377,6 +383,31 @@ class ConfigMixin:
         self.hat_command_template = str(
             self._get_general_config_value("hat_command_template", "")
         ).strip()
+        self.hybrid_classifier_enabled = bool(
+            self._get_general_config_value("hybrid_classifier_enabled", True)
+        )
+        self.classifier_provider = str(
+            self._get_general_config_value("classifier_provider", "DirectML")
+        ).strip()
+        self.classifier_models_path = str(
+            self._get_general_config_value("classifier_models_path", "")
+        ).strip().strip('"').strip("'")
+        self.classifier_auto_download = bool(
+            self._get_general_config_value("classifier_auto_download", True)
+        )
+        self.classifier_release_base_url = str(
+            self._get_general_config_value("classifier_release_base_url", "")
+        ).strip()
+        self.classifier_idle_unload_seconds = max(
+            0,
+            min(
+                600,
+                int(self._get_general_config_value("classifier_idle_unload_seconds", 30)),
+            ),
+        )
+        self.classifier_clip_min_probability = 0.60
+        self.classifier_clip_min_margin = 0.10
+        self.classifier_clip_logit_scale = 100.0
 
         builtin_bin = get_default_upscayl_bin_path()
         builtin_models = get_default_upscayl_models_path()

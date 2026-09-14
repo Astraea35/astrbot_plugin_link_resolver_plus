@@ -5,7 +5,13 @@ from .annotations import (
     build_image_processing_annotation_text,
     format_image_processing_annotation,
 )
-from .classifier import AnimePhotoClassifier, get_classifier
+from .classifier import (
+    AnimePhotoClassifier,
+    ClassificationResult,
+    HybridImageClassifier,
+    RuleV2Classifier,
+    get_classifier,
+)
 from .encoder import MediaEncoder
 from .metadata import ImageMetadataStore
 from .process import monitor_process_percentage
@@ -13,6 +19,9 @@ from .upscaler import UpscaylUpscaler
 
 __all__ = [
     "AnimePhotoClassifier",
+    "ClassificationResult",
+    "HybridImageClassifier",
+    "RuleV2Classifier",
     "get_classifier",
     "UpscaylUpscaler",
     "MediaEncoder",

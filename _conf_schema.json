@@ -497,6 +497,54 @@
                     }
                 }
             },
+            "image_classifier": {
+                "description": "自动图片分类",
+                "type": "object",
+                "items": {
+                    "hybrid_classifier_enabled": {
+                        "description": "规则 V2 + CLIP 复核",
+                        "type": "bool",
+                        "default": true,
+                        "hint": "开启后，规则无法确定的图片会使用 CLIP 复核；关闭后只运行 CPU 规则 V2。"
+                    },
+                    "classifier_provider": {
+                        "description": "CLIP 运行设备",
+                        "type": "string",
+                        "default": "DirectML",
+                        "options": [
+                            "DirectML",
+                            "CPU"
+                        ],
+                        "hint": "Windows + N 卡推荐 DirectML；不可用时会自动回到 CPU 或规则 V2。"
+                    },
+                    "classifier_models_path": {
+                        "description": "CLIP 分类模型文件夹",
+                        "type": "string",
+                        "default": "",
+                        "hint": "留空时使用 AstrBot 实例级 models/classifier，插件和实例升级不会覆盖。"
+                    },
+                    "classifier_auto_download": {
+                        "description": "后台自动下载分类模型",
+                        "type": "bool",
+                        "default": true,
+                        "hint": "首次启动后台下载并校验模型；下载失败不影响解析，继续使用规则 V2。"
+                    },
+                    "classifier_idle_unload_seconds": {
+                        "description": "CLIP 空闲卸载时间(秒)",
+                        "type": "int",
+                        "default": 30,
+                        "min": 0,
+                        "max": 600,
+                        "hint": "新请求会重新计时；开始 AI 升图前会立即释放分类模型。"
+                    },
+                    "classifier_release_base_url": {
+                        "description": "分类模型发布资源地址",
+                        "type": "string",
+                        "default": "",
+                        "hint": "通常留空使用官方 GitHub Release；镜像部署可填写包含模型和 SHA256SUMS.txt 的目录地址。"
+                    }
+                }
+            },
             "concurrency": {
                 "description": "并发任务设置",
                 "type": "object",

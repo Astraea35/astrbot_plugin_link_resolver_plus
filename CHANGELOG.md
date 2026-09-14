@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.9.0
+
+- 自动图片分类升级为规则 V2 + LAION CLIP ViT-B/32 低置信度复核，输出 `anime`、`photo`、`text_ui`、`uncertain` 四类结构化结果。
+- 文字、聊天、网页、文档和应用界面截图跳过 AI 升图；动漫自动使用 AnimeJaNai Balanced，照片沿用 LiveAction/Nomos8k 动态路由，不确定图片使用 Remacri。
+- CLIP 视觉 FP16 ONNX 不进入插件仓库，首次启动后台下载到实例级 `models/classifier`；源码固定资源与清单 SHA256，目录锁和唯一临时文件避免重载竞争，校验成功后原子替换。
+- DirectML Session 使用顺序执行和单线程 `run()`；多图先整组分类，首次升图前立即释放，空闲 30 秒自动卸载，插件停止时最多等待 10 秒清理资源。
+- 新增规则阈值、UI 检测、CLIP 置信度、资源损坏、并发串行、空闲卸载、请求续期、升图前释放与图片工具锁顺序测试。
+
 ## v1.8.10
 
 - 自动动漫升图统一优先 AnimeJaNai V3.1 Balanced；HFA2k SPAN 保留为手动动漫自然 2x 选项。

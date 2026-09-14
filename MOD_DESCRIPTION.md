@@ -8,11 +8,11 @@
 │  🎨 魔改功能清单                                                           │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
-│  1. 🤖 动漫分类器 (ONNX)                                                    │
-│     文件: core/xiaohongshu/handler.py - AnimePhotoClassifier 类              │
-│     模型: anime_classifier.onnx（插件根目录）                                │
-│     说明: ONNX 推理 + CV 兜底，判断二次元/照片                               │
-│     二次元用 digital-art-4x 模型升图，照片用 ultrasharp-4x                   │
+│  1. 🤖 自动图片分类器 (规则 V2 + CLIP)                                      │
+│     文件: core/common/media/classifier.py                                    │
+│     模型: 实例目录 models/classifier/clip_vision_fp16.onnx                   │
+│     说明: CPU 规则先判；低置信度由 DirectML CLIP 复核并自动卸载              │
+│     路由: 动漫 AnimeJaNai，照片 SPAN，文字/UI 跳过，不确定 Remacri           │
 │                                                                             │
 │  2. 🎨 AI 升图 (Upscayl)                                                    │
 │     文件: core/xiaohongshu/handler.py - _upscayl_image 方法                 │
@@ -79,8 +79,8 @@
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  保留以下文件/代码：                                                        │
-│  - anime_classifier.onnx（模型文件）                                         │
-│  - AnimePhotoClassifier 类（ONNX+CV分类器）                                  │
+│  - core/common/media/classifier.py（规则 V2 + CLIP 分类与生命周期）           │
+│  - 实例目录 models/classifier（独立 Release 模型，不进入插件仓库）            │
 │  - _upscayl_image 方法                                                      │
 │  - _send_file_via_api 方法                                                  │
 │  - _ffmpeg_compress_av1 + _generate_jpg_preview + _convert_to_avif_with_preview │

@@ -14,7 +14,7 @@ from .core.common.config_mixin import ConfigMixin
 from .core.common.base_mixin import BaseUtilsMixin
 from .core.common.commands_mixin import CommandsMixin
 from .core.common.font_manager import install_managed_fonts
-from .core.common.media import UpscaylUpscaler, MediaEncoder
+from .core.common.media import HybridImageClassifier, MediaEncoder, UpscaylUpscaler
 from .core.common.image_tool_mixin import ImageToolMixin
 from .core.douyin import DOUYIN_MESSAGE_PATTERN, DouyinExtractor
 from .core.douyin.handler import DouyinMixin
@@ -36,7 +36,7 @@ from .core.extended_platforms.handler import ExtendedPlatformsMixin
     "astrbot_plugin_link_resolver_plus",
     "Astraea35",
     "多平台解析下载 + AI升图 + AVIF压缩",
-    "1.8.10",
+    "1.9.0",
 )
 class LinkResolverPlugin(
     ConfigMixin,
@@ -76,16 +76,32 @@ class LinkResolverPlugin(
         self.managed_emoji_font_ready = False
         self.xhs_renderer: XiaohongshuCardRenderer | None = None
         self._refresh_config()
+        self.image_classifier = HybridImageClassifier(self)
+        self._cache_clean_task: asyncio.Task | None = None
 
     async def initialize(self) -> None:
-        if not self.font_auto_install_enabled:
-            return
-        managed_paths = await asyncio.to_thread(install_managed_fonts)
-        self.managed_primary_font_ready = managed_paths.primary is not None
-        self.managed_emoji_font_ready = managed_paths.emoji is not None
+        self._refresh_config()
+        classifier = getattr(self, "image_classifier", None)
+        if classifier is not None:
+            classifier.start_background_download()
+        if self.font_auto_install_enabled:
+            managed_paths = await asyncio.to_thread(install_managed_fonts)
+            self.managed_primary_font_ready = managed_paths.primary is not None
+            self.managed_emoji_font_ready = managed_paths.emoji is not None
 
         # 启动后台 7 天缓存自动清理
-        asyncio.create_task(self._auto_clean_expired_cache())
+        self._cache_clean_task = asyncio.create_task(
+            self._auto_clean_expired_cache(), name="link-resolver-cache-clean"
+        )
+
+    async def terminate(self) -> None:
+        classifier = getattr(self, "image_classifier", None)
+        if classifier is not None:
+            await classifier.shutdown(timeout=10.0)
+        if self._cache_clean_task and not self._cache_clean_task.done():
+            self._cache_clean_task.cancel()
+            await asyncio.gather(self._cache_clean_task, return_exceptions=True)
+        self._cache_clean_task = None
 
     # region 事件正则过滤器与路由
     @filter.regex(BILI_MESSAGE_PATTERN, priority=10)

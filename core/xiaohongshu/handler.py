@@ -552,7 +552,13 @@ class XiaohongshuMixin:
         return image_path
 
     async def _post_process_xhs_image(
-        self, image_path, request_id, index=0, total=0, metadata_context=None
+        self,
+        image_path,
+        request_id,
+        index=0,
+        total=0,
+        metadata_context=None,
+        classification_hint=None,
     ):
         task_info = getattr(self, "current_task_info", None)
         if task_info is not None:
@@ -587,6 +593,7 @@ class XiaohongshuMixin:
                 "low_quality_threshold",
                 "xhs_upscayl_model_name",
             ),
+            classification_hint=classification_hint,
             compress_avif=getattr(self, "enable_global_ffmpeg_compress", True),
             generate_preview=True,
         )
@@ -815,6 +822,22 @@ class XiaohongshuMixin:
             processing_timings = []
             processed_results = []
 
+            classification_hints = [None for _ in image_paths]
+            model_setting = getattr(
+                self, "xhs_upscayl_model_name", "自动 (CV特征识别)"
+            )
+            is_auto_model = model_setting in (
+                "自动 (CV特征识别)",
+                "auto",
+            ) or "Auto" in str(model_setting)
+            classifier = getattr(self, "image_classifier", None)
+            if (
+                getattr(self, "xhs_enable_ai_upscale", True)
+                and is_auto_model
+                and classifier is not None
+            ):
+                classification_hints = await classifier.classify_many(image_paths)
+
             for i, img_path in enumerate(image_paths):
                 (
                     proc_path,
@@ -847,6 +870,7 @@ class XiaohongshuMixin:
                             and result.live_photo_urls[i]
                         ),
                     },
+                    classification_hint=classification_hints[i],
                 )
                 upscale_annotations.append(format_image_processing_annotation(
                     i + 1,

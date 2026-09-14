@@ -67,6 +67,7 @@ from core.common.media.upscaler import (  # noqa: E402
     UPSCAYL_MODEL_NAME_MAP,
     UpscaylUpscaler,
 )
+from core.common.media.classifier import ClassificationResult  # noqa: E402
 
 
 class UpscalerRoutingTests(unittest.TestCase):
@@ -218,3 +219,34 @@ class UpscalerRoutingTests(unittest.TestCase):
         self.assertEqual(four_x_photo, AUTO_PHOTO_MODEL)
         self.assertEqual(two_x_anime, AUTO_ANIME_MODEL)
         self.assertEqual(four_x_anime, AUTO_ANIME_MODEL)
+
+    def test_text_ui_skips_ai_upscale(self):
+        with tempfile.TemporaryDirectory() as directory:
+            input_path = self._image(directory, "ui.png", (800, 600))
+            decision = asyncio.run(
+                self.upscaler.check_is_low_quality(
+                    input_path,
+                    classification_hint=ClassificationResult(
+                        "text_ui", 0.96, "clip", {},
+                    ),
+                )
+            )
+
+        self.assertFalse(decision[0])
+        self.assertIn("文字/UI", decision[1])
+        self.assertIsNone(decision[2])
+
+    def test_uncertain_uses_remacri_fallback(self):
+        with tempfile.TemporaryDirectory() as directory:
+            input_path = self._image(directory, "uncertain.png", (800, 600))
+            decision = asyncio.run(
+                self.upscaler.check_is_low_quality(
+                    input_path,
+                    classification_hint=ClassificationResult(
+                        "uncertain", 0.55, "clip", {},
+                    ),
+                )
+            )
+
+        self.assertTrue(decision[0])
+        self.assertEqual(decision[2], "remacri-4x")

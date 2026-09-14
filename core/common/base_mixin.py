@@ -17,7 +17,7 @@ from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent, MessageChain
 
 from .exceptions import SizeLimitExceeded
-from .media import ImageMetadataStore, monitor_process_percentage
+from .media import ClassificationResult, ImageMetadataStore, monitor_process_percentage
 from .paths import (
     get_extended_media_path,
     get_xhs_card_path,
@@ -819,17 +819,31 @@ class BaseUtilsMixin:
     async def _monitor_process_percentage(self, proc: asyncio.subprocess.Process, stage_prefix: str) -> None:
         await monitor_process_percentage(proc, stage_prefix, self)
 
-    async def _ai_upscale_platform_image_with_metadata(self, image_path, request_id, enable_flag, threshold_attr, model_attr=None):
+    async def _ai_upscale_platform_image_with_metadata(
+        self,
+        image_path,
+        request_id,
+        enable_flag,
+        threshold_attr,
+        model_attr=None,
+        classification_hint: ClassificationResult | None = None,
+        upscale_decision: tuple[bool, str, str | None] | None = None,
+    ):
         """Apply AI upscaling and retain metadata for the shared result annotation."""
         if not getattr(self, enable_flag, True):
             return image_path, False, "未检测", None, 0.0
         threshold = getattr(self, threshold_attr, 1080)
         model_setting = getattr(self, model_attr, "自动 (CV特征识别)") if model_attr else "自动 (CV特征识别)"
         try:
-            need_upscale, img_type, recommended_model = await self.upscaler.check_is_low_quality(
-                image_path, threshold=threshold, model_setting=model_setting
-            )
-            if not need_upscale:
+            if upscale_decision is None:
+                upscale_decision = await self.upscaler.check_is_low_quality(
+                    image_path,
+                    threshold=threshold,
+                    model_setting=model_setting,
+                    classification_hint=classification_hint,
+                )
+            need_upscale, img_type, recommended_model = upscale_decision
+            if not need_upscale or recommended_model is None:
                 return image_path, False, img_type, recommended_model, 0.0
 
             if getattr(self, "current_task_info", None) is None:
@@ -839,6 +853,9 @@ class BaseUtilsMixin:
                 }
 
             upscale_start = time.perf_counter()
+            classifier = getattr(self, "image_classifier", None)
+            if classifier is not None:
+                await classifier.release_before_upscale()
             async with self.ai_upscale_slot:
                 upscaled_path = await self.upscaler.upscale_image(image_path, request_id, override_model=recommended_model)
                 upscale_duration = time.perf_counter() - upscale_start
@@ -875,6 +892,8 @@ class BaseUtilsMixin:
         force_upscale_model: str | None = None,
         force_upscale_type: str = "未检测",
         force_upscale_options: tuple[int, bool, bool] | None = None,
+        classification_hint: ClassificationResult | None = None,
+        auto_upscale_decision: tuple[bool, str, str | None] | None = None,
         compress_avif: bool = True,
         generate_preview: bool = True,
         manage_lock: bool = True,
@@ -960,6 +979,8 @@ class BaseUtilsMixin:
                     enable_attr,
                     threshold_attr,
                     model_attr,
+                    classification_hint,
+                    auto_upscale_decision,
                 )
                 processing_timing['ai_upscale'] = upscale_duration
                 if was_upscaled:
@@ -1025,7 +1046,29 @@ class BaseUtilsMixin:
         ] = []
         avif_files: list[Path] = []
 
-        for image_path in image_paths:
+        classification_hints: list[ClassificationResult | None] = [
+            None for _ in image_paths
+        ]
+        upscale_decisions: list[tuple[bool, str, str | None] | None] = [
+            None for _ in image_paths
+        ]
+        if auto_upscale is not None and image_paths:
+            enable_attr, threshold_attr, model_attr = auto_upscale
+            model_setting = getattr(self, model_attr, "自动 (CV特征识别)")
+            is_auto = model_setting in ("自动 (CV特征识别)", "auto") or "Auto" in str(model_setting)
+            classifier = getattr(self, "image_classifier", None)
+            if getattr(self, enable_attr, True) and is_auto and classifier is not None:
+                classification_hints = await classifier.classify_many(image_paths)
+                threshold = getattr(self, threshold_attr, 1080)
+                for index, image_path in enumerate(image_paths):
+                    upscale_decisions[index] = await self.upscaler.check_is_low_quality(
+                        image_path,
+                        threshold=threshold,
+                        model_setting=model_setting,
+                        classification_hint=classification_hints[index],
+                    )
+
+        for image_index, image_path in enumerate(image_paths):
             (
                 processed_path,
                 preview_path,
@@ -1038,6 +1081,8 @@ class BaseUtilsMixin:
                 image_path,
                 request_id,
                 auto_upscale=auto_upscale,
+                classification_hint=classification_hints[image_index],
+                auto_upscale_decision=upscale_decisions[image_index],
                 compress_avif=compress_avif,
             )
             processed_path = processed_path or image_path

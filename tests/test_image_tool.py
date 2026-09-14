@@ -10,7 +10,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 # Provide mock astrbot and httpx modules if running outside AstrBot environment
 if "httpx" not in sys.modules:
@@ -247,6 +247,39 @@ class TestImageToolMixin(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(len(self.harness.processed_files), 2)
         self.assertEqual(len(self.harness.sent_files), 2)
+
+    async def test_automatic_batch_classification_happens_before_whole_job(self):
+        image1 = self._create_dummy_image("preclassify1.png")
+        image2 = self._create_dummy_image("preclassify2.png")
+
+        class BatchClassifier:
+            def __init__(self, lock):
+                self.lock = lock
+                self.was_inside_whole_job = None
+                self.released = False
+
+            async def classify_many(self, paths):
+                self.was_inside_whole_job = self.lock.locked()
+                return [MagicMock() for _ in paths]
+
+            async def release_before_upscale(self):
+                self.released = True
+
+        classifier = BatchClassifier(self.harness.media_whole_job)
+        self.harness.image_classifier = classifier
+        event = DummyEvent(
+            message_components=[
+                Image(url=f"file://{image1.as_posix()}"),
+                Image(url=f"file://{image2.as_posix()}"),
+            ],
+            message_str="/升图",
+        )
+
+        async for _ in self.harness.cmd_image_tool_upscale(event):
+            pass
+
+        self.assertFalse(classifier.was_inside_whole_job)
+        self.assertTrue(classifier.released)
 
     async def test_run_image_tool_with_model_override(self):
         """Verify model specified in command argument is passed to all processed images."""

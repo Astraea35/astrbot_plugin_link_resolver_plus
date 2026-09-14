@@ -1,23 +1,25 @@
 # 🌟 AstrBot Link Resolver (魔改增强版)
 
-## v1.7.0：扩展平台与会话治理
+## v1.9.0：规则 V2 + CLIP 自动分类
 
 - 新增快手、视频号、知乎、小黑盒、A站、YouTube、TikTok、Instagram、Pixiv、Iwara、网易云和 NGA 的通用媒体下载通道。
 - 新增 `开启解析`、`关闭解析`、`解析状态` 会话命令；开关只作用于当前群或私聊，插件重启后恢复默认开启。
 - 新增同会话重复链接防抖、扩展平台代理/Cookie、最大媒体数、下载超时和 `gallery-dl` 兜底配置。
 - 原有 B站、抖音、小红书、微博、X 继续使用原生解析与图片后处理流程，不会被通用下载器替代。
 
-本插件基于开源项目 [vacacia/astrbot_plugin_link_resolver](https://github.com/vacacia/astrbot_plugin_link_resolver) **v1.0.10** 版本进行深度定制与性能魔改。在保留原版对 B站、抖音、小红书、微博、X/Twitter 基础解析能力的基础上，新增了 **OpenCV 视觉特征智能分类、Upscayl/SPAN 双后端 AI 图像超分、FFmpeg AV1/AVIF 极致压缩、B站扫码登录、异步进度查询及异机部署文件传输适配** 等核心功能。
+本插件基于开源项目 [vacacia/astrbot_plugin_link_resolver](https://github.com/vacacia/astrbot_plugin_link_resolver) **v1.0.10** 版本进行深度定制与性能魔改。在保留原版对 B站、抖音、小红书、微博、X/Twitter 基础解析能力的基础上，新增了 **规则 V2 + CLIP 混合图片分类、Upscayl/SPAN/AnimeJaNai AI 图像超分、FFmpeg AV1/AVIF 极致压缩、B站扫码登录、异步进度查询及异机部署文件传输适配** 等核心功能。
 
 ---
 
 ## 🎨 魔改核心特性 (vs 原版对比)
 
-### 1. 🧠 OpenCV 智能二次元/照片分类器
+### 1. 🧠 规则 V2 + CLIP 混合图片分类器
 
 * **原版**：小红书/图文内容下载后直接发送原图或固定处理。
-* **魔改版**：引入 OpenCV 视觉特征提取（饱和度、线稿边缘、平坦度）。
-* **效果**：自动识别图片类型，并结合原图尺寸选择模型和倍率。二次元/插画使用 `HFA2k SPAN 2x` 或 `AnimeVideoV3 4x`；真实照片使用 `LiveActionV1 SPAN 2x` 或 `Nomos8k SPAN 4x`。
+* **规则 V2**：最长边缩至 `512px`，综合饱和度分布、色彩熵、平坦区域、线条密度、局部纹理和界面结构。
+* **CLIP 复核**：规则不能确定时，使用 LAION CLIP ViT-B/32 的仅图像 FP16 ONNX 与预计算英文提示词原型复核。
+* **四类路由**：动漫使用 `AnimeJaNai V3.1 Balanced`；照片按尺寸使用 `LiveActionV1 SPAN 2x` / `Nomos8k SPAN 4x`；文字/UI 截图跳过 AI；最终不确定使用 `Remacri`。
+* **资源生命周期**：DirectML 推理严格串行，与 AI 升图共用 GPU 门控；开始升图前立即释放，空闲 30 秒自动卸载。
 * **尺寸保护**：自动模式按图片长边动态选择 2x/4x，并将结果长边限制在 `3840px`（可配置）；已经达到上限的图片不再重复升图。
 * **兼容回退**：自动模型不可用或执行失败时，动漫回退 `digital-art-4x`，照片回退 `remacri-4x`。`ultrasharp-4x` 仍可手动选择，但不再用于自动路由。
 
@@ -25,7 +27,7 @@
 
 * **原版**：仅支持原图下载/转码发送。
 * **魔改版**：针对低分辨率（低于设定阈值，默认 2160px）或模糊度不达标的图片，自动调用 Upscayl NCNN 或 SPAN NCNN 后端。自动模式使用单次推理与输出尺寸保护；旧 Upscayl 模型的双重 Pass 仅保留给手动模式。
-* **高质量手动档**：支持 `AnimeJaNai V3.1 Balanced/Sharp` 和 `Real HAT GAN x4/Sharper`。AnimeJaNai 权重随资源包提供，但需要自行配置 ONNX/TensorRT/DirectML 运行器；HATGAN 运行器和权重均需自行配置。
+* **高质量手动档**：支持 `AnimeJaNai V3.1 Balanced/Sharp`，Windows 使用内置 DirectML 运行器；AVV3 继续保留为手动极速动漫模型。
 * **涵盖平台**：小红书、抖音、微博、X (Twitter)。
 
 ### 3. 🗜️ FFmpeg AVIF/JXL 图片转码 + JPG 预览
@@ -118,7 +120,11 @@
 * `auto_upscale_max_long_edge` (int): 自动升图结果的最大长边，默认 `3840px`。
 * `animejanai_bin_path` / `animejanai_models_path` (string): AnimeJaNai 外部运行器和模型目录。
 * `animejanai_command_template` (string): AnimeJaNai 运行命令模板，支持 `{input}`、`{output}`、`{model}`、`{scale}`、`{models}` 占位符。
-* `hat_bin_path` / `hat_models_path` / `hat_command_template` (string): Real HAT GAN 外部运行器、权重目录和命令模板。
+* `image_classifier.hybrid_classifier_enabled` (bool): 是否启用 CLIP 低置信度复核，默认 `true`。
+* `image_classifier.classifier_provider` (string): `DirectML` 或 `CPU`，Windows 默认 `DirectML`。
+* `image_classifier.classifier_models_path` (string): 分类模型目录；留空使用实例级 `models/classifier`。
+* `image_classifier.classifier_auto_download` (bool): 首次启动后台下载并校验分类资源，默认 `true`。
+* `image_classifier.classifier_idle_unload_seconds` (int): CLIP 空闲卸载时间，默认 `30` 秒。
 * `enable_ffmpeg_compress` (bool): 是否开启全局图片压缩（默认 `true`）。
 * `image_compress_format` (string): 全局图片压缩格式，`AVIF（高压缩度）` 或 `JXL（高质量）`，默认 AVIF。
 * `jxl_distance` (string): JXL 有损质量参数，默认 `1.0`（视觉无损）；PNG 自动使用 `0`（无损）。
@@ -143,7 +149,6 @@
 
 ### 1. 绝对不能覆盖的核心自定义模块
 
-* `anime_classifier.onnx`（分类模型权重）
 * `core/common/media/` 文件夹（包含分类器 `classifier.py`、编码器 `encoder.py`、Upscayl 升图 `upscaler.py` 及进程监控 `process.py`）
 * `MOD_DESCRIPTION.md`（魔改变更历史记录）
 
@@ -176,6 +181,8 @@ Upscayl：若使用旧模型或 AVV3，请安装 Upscayl 官方客户端；默�
 配套资源：将发布包中的 `resources.zip` 解压到插件根目录，最终应存在 `resources/bin`、`resources/models`、`resources/span_models`、`resources/animejanai_models` 和 `resources/licenses`。首次启动时，AnimeJaNai 权重会自动迁移到实例目录的 `models/animejanai`；该目录与 `core`、`venv` 并列，插件和 AstrBot 实例更新都不会覆盖其中的权重。SPAN 与 AVV3 可直接使用；Windows 上 AnimeJaNai 使用内置 DirectML 运行器。
 
 首次启动也会把 SPAN 与 Upscayl 运行器、模型迁移到实例目录的 `ai_upscale`。因此插件 GitHub 更新和 AstrBot 实例更新都不会再导致自动升图丢失资源。
+
+分类器首次启动会在后台从独立 GitHub Release 下载约 `176MB` 的 CLIP 视觉 ONNX、类别原型、许可证和 SHA256 清单到实例目录 `models/classifier`。插件源码固定清单与资源哈希，并使用目录锁、唯一临时文件和原子替换处理插件重载；下载失败时继续使用规则 V2，不会阻断平台解析。
 
 AnimeJaNai 模型由 [the-database/mpv-AnimeJaNai](https://github.com/the-database/mpv-AnimeJaNai) 提供，采用 `CC BY-NC-SA 4.0`：允许公开分享和非商业使用，但必须署名、保留许可证、标注修改，衍生版本需使用相同许可证。完整文本位于 `resources/licenses/AnimeJaNai-LICENSE.txt`。本插件及作者不主张这些模型权重的所有权；若未来用于收费服务、商业机器人或其他变现用途，请先移除该模型或另行取得授权。
 

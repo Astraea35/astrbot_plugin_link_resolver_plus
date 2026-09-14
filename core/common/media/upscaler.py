@@ -13,7 +13,7 @@ from PIL import Image as PILImage
 from astrbot.api import logger
 
 from ..paths import get_persistent_animejanai_models_path
-from .classifier import cv2_imread_safe, get_classifier
+from .classifier import ClassificationResult, cv2_imread_safe, get_classifier
 from .process import monitor_process_percentage
 
 
@@ -107,6 +107,51 @@ class UpscaylUpscaler:
 
         return self._select_automatic_scale_for_long_edge(long_edge)
 
+    async def classify_image(
+        self,
+        image_path: Path,
+        classification_hint: ClassificationResult | None = None,
+    ) -> ClassificationResult:
+        if classification_hint is not None:
+            return classification_hint
+
+        classifier = getattr(self.plugin, "image_classifier", None) or get_classifier()
+        classify = getattr(classifier, "classify", None)
+        if classify is not None:
+            result = classify(image_path)
+            if asyncio.iscoroutine(result):
+                result = await result
+            if isinstance(result, ClassificationResult):
+                return result
+
+        predict_is_anime = getattr(classifier, "predict_is_anime", None)
+        is_anime = bool(
+            await asyncio.to_thread(predict_is_anime, image_path)
+            if predict_is_anime is not None
+            else False
+        )
+        return ClassificationResult(
+            "anime" if is_anime else "photo",
+            0.5,
+            "legacy_cv",
+            {},
+        )
+
+    @staticmethod
+    def _classification_route(
+        result: ClassificationResult, auto_scale: int | None
+    ) -> tuple[str, float, str | None]:
+        source_label = "CLIP" if result.source == "clip" else "规则V2"
+        confidence = round(result.confidence * 100)
+        if result.kind == "anime":
+            return f"二次元({source_label} {confidence}%)", 35.0, AUTO_ANIME_MODEL
+        if result.kind == "photo":
+            model = "liveaction-v1-span-2x" if auto_scale == 2 else AUTO_PHOTO_MODEL
+            return f"照片({source_label} {confidence}%)", 80.0, model
+        if result.kind == "text_ui":
+            return f"文字/UI({source_label} {confidence}%)", 0.0, None
+        return f"不确定({source_label} {confidence}%)", 55.0, "remacri-4x"
+
     @staticmethod
     def _safe_cache_component(value: str) -> str:
         return re.sub(r"[^A-Za-z0-9._-]+", "_", value)
@@ -143,7 +188,8 @@ class UpscaylUpscaler:
         image_path: Path,
         threshold: int = None,
         model_setting: str = "自动 (CV特征识别)",
-    ) -> tuple[bool, str, str]:
+        classification_hint: ClassificationResult | None = None,
+    ) -> tuple[bool, str, str | None]:
         """Determine whether an image needs enhancement and route to an available model."""
         try:
             local_threshold = threshold or getattr(self.plugin, "low_quality_threshold", 2160)
@@ -157,23 +203,22 @@ class UpscaylUpscaler:
 
             is_auto = model_setting in ("自动 (CV特征识别)", "auto") or "Auto" in model_setting
             if is_auto:
-                classifier = get_classifier()
-                is_anime = await asyncio.to_thread(classifier.predict_is_anime, image_path)
+                classification = await self.classify_image(image_path, classification_hint)
                 auto_scale = self._select_automatic_scale_for_long_edge(max(width, height))
-                if is_anime:
-                    img_type_label = "二次元(CV)"
-                    dynamic_blur_threshold = 35.0
-                    recommended_model = AUTO_ANIME_MODEL
-                else:
-                    img_type_label = "照片(CV)"
-                    dynamic_blur_threshold = 80.0
-                    recommended_model = "liveaction-v1-span-2x" if auto_scale == 2 else AUTO_PHOTO_MODEL
+                (
+                    img_type_label,
+                    dynamic_blur_threshold,
+                    recommended_model,
+                ) = self._classification_route(classification, auto_scale)
             else:
                 recommended_model = self._resolve_model(model_setting)
                 img_type_label = f"手动指定({recommended_model})"
                 dynamic_blur_threshold = 35.0 if self._model_spec(recommended_model).category == "anime" else 80.0
 
             logger.info("📏 [尺寸检测] 当前图片尺寸: %dx%d | 设定判定阈值: %dpx", width, height, local_threshold)
+            if is_auto and recommended_model is None:
+                logger.info("📝 [%s] 检测为文字或界面截图，跳过 AI 升图", img_type_label)
+                return False, img_type_label, None
             if is_low_res:
                 logger.info("🔳 [%s] 尺寸 (%dx%d) < 阈值 (%dpx)，触发 AI 升图", img_type_label, width, height, local_threshold)
                 return True, img_type_label, recommended_model

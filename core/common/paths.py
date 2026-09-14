@@ -211,6 +211,15 @@ def get_persistent_animejanai_models_path() -> Path:
     return get_plugin_data_animejanai_models_path()
 
 
+def get_persistent_classifier_models_path() -> Path:
+    """Get the instance-level classifier directory preserved across updates."""
+    for parent in get_plugin_root().parents:
+        if parent.name == "core" and (parent / "astrbot").is_dir():
+            return _ensure_dir(parent.parent / "models" / "classifier")
+
+    return _ensure_dir(_get_data_dir() / "models" / "classifier")
+
+
 def get_plugin_data_animejanai_models_path() -> Path:
     """获取 v1.8.7 及以前使用的插件数据目录，用于一次性迁移。"""
     return _ensure_dir(_get_data_dir() / "models" / "animejanai")
