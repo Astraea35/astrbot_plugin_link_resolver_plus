@@ -28,6 +28,7 @@ async def monitor_process_percentage(
     last_logged_pct = -999.0
     has_percentage = False  # 是否检测到百分比信号
     heartbeat_stop = asyncio.Event()
+    error_lines: list[str] = []
 
     async def _heartbeat() -> None:
         """Keep elapsed-time logs independent from the child-process output rate."""
@@ -87,6 +88,12 @@ async def monitor_process_percentage(
                     if not text.strip():
                         continue
 
+                    # Keep the final child-process diagnostics for failures without
+                    # flooding normal progress logs (notably ONNX tracebacks).
+                    error_lines.append(text.strip())
+                    if len(error_lines) > 8:
+                        error_lines.pop(0)
+
                     pct_val = None
 
                     # 1. 尝试匹配百分比 (如 Upscayl)
@@ -132,3 +139,5 @@ async def monitor_process_percentage(
     await proc.wait()
     if proc.returncode != 0:
         logger.warning("⚠️ %s 执行异常 (returncode=%s)", stage_prefix, proc.returncode)
+        if error_lines:
+            logger.warning("⚠️ %s 失败详情: %s", stage_prefix, " | ".join(error_lines)[-2000:])

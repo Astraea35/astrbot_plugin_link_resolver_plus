@@ -267,6 +267,11 @@ class UpscaylUpscaler:
         if not binary or not Path(binary).exists():
             logger.error("❌ [%s 路径错误] 找不到可执行文件: %s", spec.backend.upper(), binary or "未配置")
             return False
+        if spec.backend == "animejanai":
+            model_path = Path(models_dir) / f"{model_name}.onnx"
+            if not model_path.is_file():
+                logger.error("❌ [ANIMEJANAI 模型缺失] 请将 %s 放入 %s", model_path.name, model_path.parent)
+                return False
 
         try:
             cmd = self._build_command(binary, models_dir, spec, input_path, output_path, model_name, scale, enable_taa)

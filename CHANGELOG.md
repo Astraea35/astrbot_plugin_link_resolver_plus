@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.8.6
+
+- 修正 AnimeJaNai 首次更新后权重未解压导致的失败提示；模型缺失时会明确写出所需文件和目录，子进程失败也会保留关键错误详情。
+
 ## v1.8.5
 
 - AnimeJaNai Balanced 新增内置 DirectML 运行器和自动依赖，可直接使用本地 ONNX 权重；自动动漫路由优先 Balanced，AVV3 保留手动选择。
