@@ -163,7 +163,7 @@ class UpscaylUpscaler:
                 if is_anime:
                     img_type_label = "二次元(CV)"
                     dynamic_blur_threshold = 35.0
-                    recommended_model = "hfa2k-span-2x" if auto_scale == 2 else AUTO_ANIME_MODEL
+                    recommended_model = AUTO_ANIME_MODEL
                 else:
                     img_type_label = "照片(CV)"
                     dynamic_blur_threshold = 80.0

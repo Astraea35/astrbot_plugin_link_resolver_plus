@@ -216,5 +216,5 @@ class UpscalerRoutingTests(unittest.TestCase):
 
         self.assertEqual(two_x_photo, "liveaction-v1-span-2x")
         self.assertEqual(four_x_photo, AUTO_PHOTO_MODEL)
-        self.assertEqual(two_x_anime, "hfa2k-span-2x")
+        self.assertEqual(two_x_anime, AUTO_ANIME_MODEL)
         self.assertEqual(four_x_anime, AUTO_ANIME_MODEL)

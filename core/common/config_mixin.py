@@ -20,6 +20,10 @@ from .paths import (
     get_default_upscayl_models_path,
     get_plugin_data_animejanai_models_path,
     get_persistent_animejanai_models_path,
+    get_persistent_span_bin_path,
+    get_persistent_span_models_path,
+    get_persistent_upscayl_bin_path,
+    get_persistent_upscayl_models_path,
 )
 from ..xiaohongshu.render import XiaohongshuCardRenderer
 from ..extended_platforms import EXTENDED_PLATFORM_LABELS
@@ -379,12 +383,43 @@ class ConfigMixin:
         builtin_span_bin = get_default_span_bin_path()
         builtin_span_models = get_default_span_models_path()
         builtin_animejanai_models = get_default_animejanai_models_path()
+        persistent_upscayl_bin = get_persistent_upscayl_bin_path()
+        persistent_upscayl_models = get_persistent_upscayl_models_path()
+        persistent_span_bin = get_persistent_span_bin_path()
+        persistent_span_models = get_persistent_span_models_path()
         persistent_animejanai_models = get_persistent_animejanai_models_path()
         legacy_animejanai_models = get_plugin_data_animejanai_models_path()
         builtin_hat_models = get_default_hat_models_path()
 
+        if not persistent_upscayl_bin.is_file() and builtin_bin.is_file():
+            try:
+                shutil.copytree(builtin_bin.parent, persistent_upscayl_bin.parent, dirs_exist_ok=True)
+                logger.info("📦 已迁移 Upscayl 运行器到实例目录: %s", persistent_upscayl_bin.parent)
+            except OSError as exc:
+                logger.warning("⚠️ Upscayl 运行器迁移失败: %s", exc)
+        if not any(persistent_upscayl_models.glob("*.param")) and builtin_models.is_dir():
+            try:
+                shutil.copytree(builtin_models, persistent_upscayl_models, dirs_exist_ok=True)
+                logger.info("📦 已迁移 Upscayl 模型到实例目录: %s", persistent_upscayl_models)
+            except OSError as exc:
+                logger.warning("⚠️ Upscayl 模型迁移失败: %s", exc)
+        if not persistent_span_bin.is_file() and builtin_span_bin.is_file():
+            try:
+                shutil.copytree(builtin_span_bin.parent, persistent_span_bin.parent, dirs_exist_ok=True)
+                logger.info("📦 已迁移 SPAN 运行器到实例目录: %s", persistent_span_bin.parent)
+            except OSError as exc:
+                logger.warning("⚠️ SPAN 运行器迁移失败: %s", exc)
+        if not any(persistent_span_models.glob("*.param")) and builtin_span_models.is_dir():
+            try:
+                shutil.copytree(builtin_span_models, persistent_span_models, dirs_exist_ok=True)
+                logger.info("📦 已迁移 SPAN 模型到实例目录: %s", persistent_span_models)
+            except OSError as exc:
+                logger.warning("⚠️ SPAN 模型迁移失败: %s", exc)
+
         if user_bin and Path(user_bin).is_file():
             self.upscayl_bin_path = user_bin
+        elif persistent_upscayl_bin.is_file():
+            self.upscayl_bin_path = str(persistent_upscayl_bin.resolve())
         elif builtin_bin.is_file():
             self.upscayl_bin_path = str(builtin_bin.resolve())
         else:
@@ -392,6 +427,8 @@ class ConfigMixin:
 
         if user_models and Path(user_models).is_dir():
             self.upscayl_models_path = user_models
+        elif any(persistent_upscayl_models.glob("*.param")):
+            self.upscayl_models_path = str(persistent_upscayl_models.resolve())
         elif builtin_models.is_dir():
             self.upscayl_models_path = str(builtin_models.resolve())
         else:
@@ -400,11 +437,15 @@ class ConfigMixin:
         self.span_bin_path = str(
             Path(user_span_bin).resolve()
             if user_span_bin and Path(user_span_bin).is_file()
+            else persistent_span_bin.resolve()
+            if persistent_span_bin.is_file()
             else builtin_span_bin.resolve() if builtin_span_bin.is_file() else user_span_bin
         )
         self.span_models_path = str(
             Path(user_span_models).resolve()
             if user_span_models and Path(user_span_models).is_dir()
+            else persistent_span_models.resolve()
+            if any(persistent_span_models.glob("*.param"))
             else builtin_span_models.resolve() if builtin_span_models.is_dir() else user_span_models
         )
         self.animejanai_bin_path = user_animejanai_bin

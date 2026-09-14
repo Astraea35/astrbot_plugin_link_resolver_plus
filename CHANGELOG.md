@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.8.10
+
+- 自动动漫升图统一优先 AnimeJaNai V3.1 Balanced；HFA2k SPAN 保留为手动动漫自然 2x 选项。
+
+## v1.8.9
+
+- SPAN 和 Upscayl 的运行器、模型也改为迁移到 AstrBot 实例目录的 `ai_upscale`，避免插件或实例更新后自动升图回退。
+
 ## v1.8.8
 
 - AnimeJaNai 权重改存放在 AstrBot 实例根目录的 `models/animejanai`；自动迁移 v1.8.7 的插件数据目录和旧版插件资源，实例版本升级也不会覆盖模型。

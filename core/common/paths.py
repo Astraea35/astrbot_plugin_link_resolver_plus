@@ -177,6 +177,31 @@ def get_default_animejanai_models_path() -> Path:
     return get_plugin_root() / "resources" / "animejanai_models"
 
 
+def get_persistent_ai_upscale_root() -> Path:
+    """获取不会随插件或实例版本更新覆盖的升图资源根目录。"""
+    for parent in get_plugin_root().parents:
+        if parent.name == "core" and (parent / "astrbot").is_dir():
+            return _ensure_dir(parent.parent / "ai_upscale")
+
+    return _ensure_dir(_get_data_dir() / "ai_upscale")
+
+
+def get_persistent_upscayl_bin_path() -> Path:
+    return get_persistent_ai_upscale_root() / "bin" / "upscayl-bin.exe"
+
+
+def get_persistent_upscayl_models_path() -> Path:
+    return _ensure_dir(get_persistent_ai_upscale_root() / "models")
+
+
+def get_persistent_span_bin_path() -> Path:
+    return get_persistent_ai_upscale_root() / "bin" / "span-ncnn-vulkan.exe"
+
+
+def get_persistent_span_models_path() -> Path:
+    return _ensure_dir(get_persistent_ai_upscale_root() / "span_models")
+
+
 def get_persistent_animejanai_models_path() -> Path:
     """获取不会随插件或实例版本更新覆盖的 AnimeJaNai 模型目录。"""
     for parent in get_plugin_root().parents:

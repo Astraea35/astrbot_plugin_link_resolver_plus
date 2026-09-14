@@ -175,6 +175,8 @@ Upscayl：若使用旧模型或 AVV3，请安装 Upscayl 官方客户端；默�
 
 配套资源：将发布包中的 `resources.zip` 解压到插件根目录，最终应存在 `resources/bin`、`resources/models`、`resources/span_models`、`resources/animejanai_models` 和 `resources/licenses`。首次启动时，AnimeJaNai 权重会自动迁移到实例目录的 `models/animejanai`；该目录与 `core`、`venv` 并列，插件和 AstrBot 实例更新都不会覆盖其中的权重。SPAN 与 AVV3 可直接使用；Windows 上 AnimeJaNai 使用内置 DirectML 运行器。
 
+首次启动也会把 SPAN 与 Upscayl 运行器、模型迁移到实例目录的 `ai_upscale`。因此插件 GitHub 更新和 AstrBot 实例更新都不会再导致自动升图丢失资源。
+
 AnimeJaNai 模型由 [the-database/mpv-AnimeJaNai](https://github.com/the-database/mpv-AnimeJaNai) 提供，采用 `CC BY-NC-SA 4.0`：允许公开分享和非商业使用，但必须署名、保留许可证、标注修改，衍生版本需使用相同许可证。完整文本位于 `resources/licenses/AnimeJaNai-LICENSE.txt`。本插件及作者不主张这些模型权重的所有权；若未来用于收费服务、商业机器人或其他变现用途，请先移除该模型或另行取得授权。
 
 ```bash
