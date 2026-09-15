@@ -43,6 +43,8 @@ GENERAL_SETTING_SECTIONS = {
     "span_bin_path": "ai_upscale",
     "span_models_path": "ai_upscale",
     "auto_upscale_max_long_edge": "ai_upscale",
+    "animejanai_auto_min_long_edge": "ai_upscale",
+    "animejanai_auto_max_passes": "ai_upscale",
     "animejanai_bin_path": "ai_upscale",
     "animejanai_models_path": "ai_upscale",
     "animejanai_command_template": "ai_upscale",
@@ -376,6 +378,14 @@ class ConfigMixin:
         )
         self.auto_upscale_max_long_edge = max(
             512, min(16384, int(self._get_general_config_value("auto_upscale_max_long_edge", 3840)))
+        )
+        self.animejanai_auto_min_long_edge = max(
+            512,
+            min(16384, int(self._get_general_config_value("animejanai_auto_min_long_edge", 3840))),
+        )
+        self.animejanai_auto_max_passes = max(
+            1,
+            min(6, int(self._get_general_config_value("animejanai_auto_max_passes", 6))),
         )
         self.animejanai_command_template = str(
             self._get_general_config_value("animejanai_command_template", "")

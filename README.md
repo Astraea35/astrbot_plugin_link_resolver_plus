@@ -1,6 +1,6 @@
 # 🌟 AstrBot Link Resolver (魔改增强版)
 
-## v1.9.0：规则 V2 + CLIP 自动分类
+## v1.9.1：AnimeJaNai 原生 4K 自动输出
 
 - 新增快手、视频号、知乎、小黑盒、A站、YouTube、TikTok、Instagram、Pixiv、Iwara、网易云和 NGA 的通用媒体下载通道。
 - 新增 `开启解析`、`关闭解析`、`解析状态` 会话命令；开关只作用于当前群或私聊，插件重启后恢复默认开启。
@@ -20,13 +20,13 @@
 * **CLIP 复核**：规则不能确定时，使用 LAION CLIP ViT-B/32 的仅图像 FP16 ONNX 与预计算英文提示词原型复核。
 * **四类路由**：动漫使用 `AnimeJaNai V3.1 Balanced`；照片按尺寸使用 `LiveActionV1 SPAN 2x` / `Nomos8k SPAN 4x`；文字/UI 截图跳过 AI；最终不确定使用 `Remacri`。
 * **资源生命周期**：DirectML 推理严格串行，与 AI 升图共用 GPU 门控；开始升图前立即释放，空闲 30 秒自动卸载。
-* **尺寸保护**：自动模式按图片长边动态选择 2x/4x，并将结果长边限制在 `3840px`（可配置）；已经达到上限的图片不再重复升图。
+* **尺寸策略**：自动动漫会以 AnimeJaNai 原生 2x 连续升图，直到最长边首次达到或超过 `3840px`，并保留实际输出尺寸；照片和通用模型仍按图片长边动态选择 2x/4x，并限制在 `3840px`。
 * **兼容回退**：自动模型不可用或执行失败时，动漫回退 `digital-art-4x`，照片回退 `remacri-4x`。`ultrasharp-4x` 仍可手动选择，但不再用于自动路由。
 
 ### 2. 🖼️ 全平台双后端 AI 图像超分 (全平台支持)
 
 * **原版**：仅支持原图下载/转码发送。
-* **魔改版**：针对低分辨率（低于设定阈值，默认 2160px）或模糊度不达标的图片，自动调用 Upscayl NCNN 或 SPAN NCNN 后端。自动模式使用单次推理与输出尺寸保护；旧 Upscayl 模型的双重 Pass 仅保留给手动模式。
+* **魔改版**：针对低分辨率（低于设定阈值，默认 2160px）、模糊度不达标，或自动动漫最长边尚未达到 4K 的图片，自动调用 Upscayl NCNN、SPAN NCNN 或 AnimeJaNai DirectML 后端。AnimeJaNai 自动使用原生 2x 多轮输出；旧 Upscayl 模型的双重 Pass 仅保留给手动模式。
 * **高质量手动档**：支持 `AnimeJaNai V3.1 Balanced/Sharp`，Windows 使用内置 DirectML 运行器；AVV3 继续保留为手动极速动漫模型。
 * **涵盖平台**：小红书、抖音、微博、X (Twitter)。
 
@@ -94,7 +94,7 @@
 | `扫码登录B站` | 在聊天中生成 B站 登录二维码，扫码确认后自动保存 Cookie | `扫码登录B站` |
 | `下载B站 <链接>` | 手动触发 B站 视频下载（在关闭自动下载时可用） | `下载B站 [https://www.bilibili.com/video/BV1xxx](https://www.bilibili.com/video/BV1xxx)` |
 | `解析进度` / `升图进度` / `小红书进度` | 查询当前正在后台执行的 AI 升图/AVIF 压制/多图处理实时进度 | `/解析进度` |
-| `/升图 自动` | CV 分类后按尺寸自动选择 SPAN/AVV3 模型 | `/升图 自动` |
+| `/升图 自动` | CV 分类后自动选择 AnimeJaNai 或照片 SPAN 模型 | `/升图 自动` |
 | `/升图 AVV3` | 手动使用 AnimeVideoV3 极速动漫模型 | `/升图 AVV3` |
 | `/升图 动漫自然` / `/升图 照片自然` | 手动使用轻量 SPAN 2x 模型 | `/升图 照片自然` |
 | `/升图 AnimeJaNai` | 手动使用 AnimeJaNai V3.1 Balanced | `/升图 AnimeJaNai` |
@@ -117,7 +117,8 @@
 * `low_quality_threshold` (int): 低质量图片像素阈值，默认 `2160px`。
 * `upscayl_enable_taa` (bool): 是否启用 TAA 抗锯齿（`-x`），默认 `true`。
 * `span_bin_path` / `span_models_path` (string): SPAN NCNN 运行器和模型目录；留空时自动使用插件 `resources` 中的内置文件。
-* `auto_upscale_max_long_edge` (int): 自动升图结果的最大长边，默认 `3840px`。
+* `auto_upscale_max_long_edge` (int): 照片和通用模型自动升图结果的最大长边，默认 `3840px`。
+* `animejanai_auto_min_long_edge` / `animejanai_auto_max_passes` (int): 自动动漫使用 AnimeJaNai 原生 2x 连续升图，默认最长边首次达到或超过 `3840px` 即停止，最多 `6` 轮；最终保留模型原生输出，绝不缩回 3840px。
 * `animejanai_bin_path` / `animejanai_models_path` (string): AnimeJaNai 外部运行器和模型目录。
 * `animejanai_command_template` (string): AnimeJaNai 运行命令模板，支持 `{input}`、`{output}`、`{model}`、`{scale}`、`{models}` 占位符。
 * `image_classifier.hybrid_classifier_enabled` (bool): 是否启用 CLIP 低置信度复核，默认 `true`。

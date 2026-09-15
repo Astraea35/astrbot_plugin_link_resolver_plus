@@ -13,6 +13,29 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from PIL import Image
 
+try:
+    import httpx  # noqa: F401
+except ModuleNotFoundError:
+    httpx_module = types.ModuleType("httpx")
+
+    class Timeout:
+        def __init__(self, *args, **kwargs):
+            pass
+
+    class AsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, traceback):
+            return False
+
+    httpx_module.Timeout = Timeout
+    httpx_module.AsyncClient = AsyncClient
+    sys.modules["httpx"] = httpx_module
+
 
 media_path = Path(__file__).resolve().parents[1] / "core" / "common" / "media"
 media_package = types.ModuleType("core.common.media")
@@ -74,6 +97,8 @@ class UpscalerRoutingTests(unittest.TestCase):
     def setUp(self):
         self.plugin = types.SimpleNamespace(
             auto_upscale_max_long_edge=3840,
+            animejanai_auto_min_long_edge=3840,
+            animejanai_auto_max_passes=6,
             upscayl_enable_taa=True,
         )
         self.upscaler = UpscaylUpscaler(self.plugin)
@@ -124,6 +149,32 @@ class UpscalerRoutingTests(unittest.TestCase):
         self.assertNotEqual(anime, scaled)
         self.assertIn("animejanai_animejanai-v3.1-balanced_4x", anime.name)
 
+    def test_animejanai_native_pass_cache_identity_isolated_from_legacy_single_pass(self):
+        input_path = Path("C:/cache/source.png")
+        legacy = self.upscaler._cache_path(input_path, AUTO_ANIME_MODEL, 2, True)
+        two_passes = self.upscaler._cache_path(
+            input_path,
+            AUTO_ANIME_MODEL,
+            2,
+            True,
+            passes=2,
+            target_long_edge=3840,
+        )
+        one_pass = self.upscaler._cache_path(
+            input_path,
+            AUTO_ANIME_MODEL,
+            2,
+            True,
+            passes=1,
+            target_long_edge=3840,
+        )
+
+        self.assertIn("animejanai_animejanai-v3.1-balanced_2x_taa1", legacy.name)
+        self.assertIn("native2x_p2_min3840", two_passes.name)
+        self.assertIn("native2x_p1_min3840", one_pass.name)
+        self.assertNotEqual(legacy, two_passes)
+        self.assertNotEqual(one_pass, two_passes)
+
     def test_animejanai_can_use_an_external_command_template(self):
         self.plugin.animejanai_command_template = '"runner.exe" --input "{input}" --output "{output}" --model {model} --scale {scale}'
         command = self.upscaler._build_command(
@@ -157,6 +208,126 @@ class UpscalerRoutingTests(unittest.TestCase):
             asyncio.run(self.upscaler._cap_automatic_output(output_path))
             with Image.open(output_path) as output:
                 self.assertEqual(output.size, (3840, 1920))
+
+    @staticmethod
+    async def _write_native_2x_output(
+        input_path: Path,
+        output_path: Path,
+        *_args,
+    ) -> bool:
+        with Image.open(input_path) as image:
+            image.resize((image.width * 2, image.height * 2)).save(output_path)
+        return True
+
+    def test_automatic_animejanai_1280_runs_two_native_passes_without_cap(self):
+        with tempfile.TemporaryDirectory() as directory:
+            input_path = self._image(directory, "anime-1280.png", (1280, 856))
+            self.upscaler._run_model = AsyncMock(
+                side_effect=self._write_native_2x_output
+            )
+            self.upscaler._cap_automatic_output = AsyncMock()
+
+            result = asyncio.run(
+                self.upscaler.upscale_image(
+                    input_path,
+                    "test",
+                    override_model=AUTO_ANIME_MODEL,
+                )
+            )
+
+            self.assertEqual(self.upscaler._run_model.await_count, 2)
+            self.assertTrue(all(
+                call.args[2] == AUTO_ANIME_MODEL and call.args[3] == 2
+                for call in self.upscaler._run_model.await_args_list
+            ))
+            self.upscaler._cap_automatic_output.assert_not_awaited()
+            with Image.open(result) as output:
+                self.assertEqual(output.size, (5120, 3424))
+
+    def test_automatic_animejanai_1920_to_3839_runs_once_without_cap(self):
+        for long_edge in (1920, 3839):
+            with self.subTest(long_edge=long_edge), tempfile.TemporaryDirectory() as directory:
+                input_path = self._image(directory, "anime.png", (long_edge, 1080))
+                self.upscaler._run_model = AsyncMock(
+                    side_effect=self._write_native_2x_output
+                )
+                self.upscaler._cap_automatic_output = AsyncMock()
+
+                result = asyncio.run(
+                    self.upscaler.upscale_image(
+                        input_path,
+                        "test",
+                        override_model=AUTO_ANIME_MODEL,
+                    )
+                )
+
+                self.assertEqual(self.upscaler._run_model.await_count, 1)
+                self.assertEqual(self.upscaler._run_model.await_args.args[3], 2)
+                self.upscaler._cap_automatic_output.assert_not_awaited()
+                with Image.open(result) as output:
+                    self.assertEqual(output.size, (long_edge * 2, 2160))
+
+    def test_automatic_animejanai_3000_by_2160_still_runs_once(self):
+        with tempfile.TemporaryDirectory() as directory:
+            input_path = self._image(directory, "anime-large.png", (3000, 2160))
+            self.upscaler._run_model = AsyncMock(
+                side_effect=self._write_native_2x_output
+            )
+            self.upscaler._cap_automatic_output = AsyncMock()
+
+            result = asyncio.run(
+                self.upscaler.upscale_image(
+                    input_path,
+                    "test",
+                    override_model=AUTO_ANIME_MODEL,
+                )
+            )
+
+            self.assertEqual(self.upscaler._run_model.await_count, 1)
+            self.assertEqual(self.upscaler._run_model.await_args.args[3], 2)
+            self.upscaler._cap_automatic_output.assert_not_awaited()
+            with Image.open(result) as output:
+                self.assertEqual(output.size, (6000, 4320))
+
+    def test_automatic_animejanai_at_or_above_target_skips_inference(self):
+        with tempfile.TemporaryDirectory() as directory:
+            input_path = self._image(directory, "anime-4k.png", (3840, 2160))
+            self.upscaler._run_model = AsyncMock()
+            self.upscaler._cap_automatic_output = AsyncMock()
+
+            result = asyncio.run(
+                self.upscaler.upscale_image(
+                    input_path,
+                    "test",
+                    override_model=AUTO_ANIME_MODEL,
+                )
+            )
+
+            self.assertEqual(result, input_path)
+            self.upscaler._run_model.assert_not_awaited()
+            self.upscaler._cap_automatic_output.assert_not_awaited()
+
+    def test_automatic_animejanai_tiny_image_respects_max_passes(self):
+        self.plugin.animejanai_auto_max_passes = 3
+        with tempfile.TemporaryDirectory() as directory:
+            input_path = self._image(directory, "tiny.png", (1, 1))
+            self.upscaler._run_model = AsyncMock(
+                side_effect=self._write_native_2x_output
+            )
+            self.upscaler._cap_automatic_output = AsyncMock()
+
+            result = asyncio.run(
+                self.upscaler.upscale_image(
+                    input_path,
+                    "test",
+                    override_model=AUTO_ANIME_MODEL,
+                )
+            )
+
+            self.assertEqual(self.upscaler._run_model.await_count, 3)
+            self.upscaler._cap_automatic_output.assert_not_awaited()
+            with Image.open(result) as output:
+                self.assertEqual(output.size, (8, 8))
 
     def test_span_anime_failure_falls_back_to_legacy_anime_model(self):
         with tempfile.TemporaryDirectory() as directory:

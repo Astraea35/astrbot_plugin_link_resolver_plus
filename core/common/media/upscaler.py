@@ -72,6 +72,8 @@ MODEL_REGISTRY: dict[str, UpscaleModel] = {
 AUTO_ANIME_MODEL = "animejanai-v3.1-balanced"
 AUTO_PHOTO_MODEL = "nomos8k-span-otf-medium"
 CACHE_MAX_AGE_SECONDS = 7 * 24 * 3600
+ANIMEJANAI_TILE_SIZE = 768
+ANIMEJANAI_TILE_OVERLAP = 64
 
 
 class UpscaylUpscaler:
@@ -156,9 +158,25 @@ class UpscaylUpscaler:
     def _safe_cache_component(value: str) -> str:
         return re.sub(r"[^A-Za-z0-9._-]+", "_", value)
 
-    def _cache_path(self, input_path: Path, model_name: str, scale: int, enable_taa: bool) -> Path:
+    def _cache_path(
+        self,
+        input_path: Path,
+        model_name: str,
+        scale: int,
+        enable_taa: bool,
+        *,
+        passes: int = 1,
+        target_long_edge: int | None = None,
+    ) -> Path:
         spec = self._model_spec(model_name)
-        cache_key = f"{spec.backend}_{self._safe_cache_component(model_name)}_{scale}x_taa{int(enable_taa)}"
+        model_key = self._safe_cache_component(model_name)
+        if spec.backend == "animejanai" and target_long_edge is not None:
+            cache_key = (
+                f"{spec.backend}_{model_key}_native{scale}x_p{max(1, int(passes))}"
+                f"_min{max(1, int(target_long_edge))}_taa{int(enable_taa)}"
+            )
+        else:
+            cache_key = f"{spec.backend}_{model_key}_{scale}x_taa{int(enable_taa)}"
         return input_path.parent / f"{input_path.stem}_upscaled_{cache_key}.png"
 
     @staticmethod
@@ -183,6 +201,82 @@ class UpscaylUpscaler:
         except Exception as exc:
             logger.warning("Unable to enforce automatic output size limit for %s: %s", output_path.name, exc)
 
+    def _animejanai_automatic_limits(self) -> tuple[int, int]:
+        """Return the minimum automatic output edge and the native-pass safety limit."""
+        target_long_edge = max(
+            512,
+            min(16384, int(getattr(self.plugin, "animejanai_auto_min_long_edge", 3840))),
+        )
+        max_passes = max(
+            1,
+            min(6, int(getattr(self.plugin, "animejanai_auto_max_passes", 6))),
+        )
+        return target_long_edge, max_passes
+
+    def _animejanai_automatic_plan(self, input_path: Path) -> tuple[int, int]:
+        """Return native 2x pass count and minimum output long edge for AnimeJaNai."""
+        target_long_edge, max_passes = self._animejanai_automatic_limits()
+        try:
+            with PILImage.open(input_path) as image:
+                current_long_edge = max(image.width, image.height)
+        except Exception as exc:
+            logger.warning("Unable to inspect AnimeJaNai input dimensions for %s: %s", input_path.name, exc)
+            return 1, target_long_edge
+
+        passes = 0
+        projected_long_edge = current_long_edge
+        while projected_long_edge < target_long_edge and passes < max_passes:
+            projected_long_edge *= 2
+            passes += 1
+
+        if passes == max_passes and projected_long_edge < target_long_edge:
+            logger.warning(
+                "⚠️ AnimeJaNai 输入 %s 在安全上限 %d 轮后仅能达到 %dpx，低于目标 %dpx",
+                input_path.name,
+                max_passes,
+                projected_long_edge,
+                target_long_edge,
+            )
+        return passes, target_long_edge
+
+    async def _run_animejanai_automatic_passes(
+        self,
+        input_path: Path,
+        output_path: Path,
+        model_name: str,
+        enable_taa: bool,
+        passes: int,
+    ) -> bool:
+        """Run AnimeJaNai's native 2x model repeatedly without post-resizing."""
+        intermediate_paths: list[Path] = []
+        current_path = input_path
+        try:
+            for pass_number in range(1, passes + 1):
+                is_final_pass = pass_number == passes
+                next_path = (
+                    output_path
+                    if is_final_pass
+                    else output_path.with_name(f"{output_path.stem}_native_pass{pass_number}.png")
+                )
+                next_path.unlink(missing_ok=True)
+                if not is_final_pass:
+                    intermediate_paths.append(next_path)
+
+                if not await self._run_model(
+                    current_path,
+                    next_path,
+                    model_name,
+                    2,
+                    enable_taa,
+                    f"🎨 AnimeJaNai 原生 2x ({pass_number}/{passes})",
+                ):
+                    return False
+                current_path = next_path
+            return True
+        finally:
+            for intermediate_path in intermediate_paths:
+                intermediate_path.unlink(missing_ok=True)
+
     async def check_is_low_quality(
         self,
         image_path: Path,
@@ -202,6 +296,7 @@ class UpscaylUpscaler:
             is_low_res = width < local_threshold or height < local_threshold
 
             is_auto = model_setting in ("自动 (CV特征识别)", "auto") or "Auto" in model_setting
+            anime_needs_minimum_long_edge = False
             if is_auto:
                 classification = await self.classify_image(image_path, classification_hint)
                 auto_scale = self._select_automatic_scale_for_long_edge(max(width, height))
@@ -210,6 +305,11 @@ class UpscaylUpscaler:
                     dynamic_blur_threshold,
                     recommended_model,
                 ) = self._classification_route(classification, auto_scale)
+                anime_target_long_edge, _ = self._animejanai_automatic_limits()
+                anime_needs_minimum_long_edge = (
+                    classification.kind == "anime"
+                    and max(width, height) < anime_target_long_edge
+                )
             else:
                 recommended_model = self._resolve_model(model_setting)
                 img_type_label = f"手动指定({recommended_model})"
@@ -219,6 +319,14 @@ class UpscaylUpscaler:
             if is_auto and recommended_model is None:
                 logger.info("📝 [%s] 检测为文字或界面截图，跳过 AI 升图", img_type_label)
                 return False, img_type_label, None
+            if anime_needs_minimum_long_edge:
+                logger.info(
+                    "🔳 [%s] 最长边 %dpx < AnimeJaNai 自动目标 %dpx，触发 AI 升图",
+                    img_type_label,
+                    max(width, height),
+                    anime_target_long_edge,
+                )
+                return True, img_type_label, recommended_model
             if is_low_res:
                 logger.info("🔳 [%s] 尺寸 (%dx%d) < 阈值 (%dpx)，触发 AI 升图", img_type_label, width, height, local_threshold)
                 return True, img_type_label, recommended_model
@@ -294,6 +402,10 @@ class UpscaylUpscaler:
                 model_name,
                 "--models",
                 models_dir,
+                "--tile-size",
+                str(ANIMEJANAI_TILE_SIZE),
+                "--tile-overlap",
+                str(ANIMEJANAI_TILE_OVERLAP),
             ]
 
         cmd = [binary, "-i", str(input_path.resolve()), "-o", str(output_path.resolve()), "-n", model_name, "-s", str(scale)]
@@ -351,36 +463,73 @@ class UpscaylUpscaler:
             override_model or getattr(self.plugin, "upscayl_model_name", "digital-art-4x")
         )
         automatic_scale = scale is None
-        if automatic_scale:
-            selected_scale = self._select_automatic_scale(input_path)
-            if selected_scale is None:
-                logger.info("📐 图片已达到自动升图长边上限，跳过: %s", input_path.name)
-                return input_path
-        else:
-            selected_scale = max(1, int(scale))
-
         spec = self._model_spec(model_name)
-        if spec.backend in {"span", "animejanai"} and selected_scale != spec.native_scale:
-            logger.info(
-                "📐 %s 模型 %s 固定使用原生 %dx 倍率",
-                spec.backend.upper(),
-                model_name,
-                spec.native_scale,
-            )
+        automatic_animejanai = automatic_scale and spec.backend == "animejanai"
+        animejanai_passes = 1
+        animejanai_target_long_edge: int | None = None
+
+        if automatic_animejanai:
+            animejanai_passes, animejanai_target_long_edge = self._animejanai_automatic_plan(input_path)
+            if animejanai_passes == 0:
+                logger.info(
+                    "📐 AnimeJaNai 输入已达到自动最低长边 %dpx，跳过: %s",
+                    animejanai_target_long_edge,
+                    input_path.name,
+                )
+                return input_path
             selected_scale = spec.native_scale
+            logger.info(
+                "📐 AnimeJaNai 自动执行 %d 轮原生 %dx，最终保留实际输出尺寸（目标长边 >= %dpx）",
+                animejanai_passes,
+                spec.native_scale,
+                animejanai_target_long_edge,
+            )
+        else:
+            if automatic_scale:
+                selected_scale = self._select_automatic_scale(input_path)
+                if selected_scale is None:
+                    logger.info("📐 图片已达到自动升图长边上限，跳过: %s", input_path.name)
+                    return input_path
+            else:
+                selected_scale = max(1, int(scale))
+
+            if spec.backend in {"span", "animejanai"} and selected_scale != spec.native_scale:
+                logger.info(
+                    "📐 %s 模型 %s 固定使用原生 %dx 倍率",
+                    spec.backend.upper(),
+                    model_name,
+                    spec.native_scale,
+                )
+                selected_scale = spec.native_scale
 
         enable_taa = enable_taa if enable_taa is not None else getattr(self.plugin, "upscayl_enable_taa", True)
         # Double processing magnifies artifacts and bypasses the automatic output cap.
         # Retain it only for explicitly requested legacy Upscayl manual operations.
         use_double_pass = bool(double_pass) and not automatic_scale and spec.backend == "upscayl"
-        out_path = self._cache_path(input_path, model_name, selected_scale, bool(enable_taa))
+        out_path = self._cache_path(
+            input_path,
+            model_name,
+            selected_scale,
+            bool(enable_taa),
+            passes=animejanai_passes,
+            target_long_edge=animejanai_target_long_edge if automatic_animejanai else None,
+        )
         if self._is_fresh_cache(out_path):
             logger.info("💾 [Cache Hit] 命中 7 天内的 AI 升图缓存: %s", out_path.name)
             return out_path
 
         pass1_path = out_path.with_name(f"{out_path.stem}_pass1.png")
         try:
-            if use_double_pass:
+            if automatic_animejanai:
+                if await self._run_animejanai_automatic_passes(
+                    input_path,
+                    out_path,
+                    model_name,
+                    bool(enable_taa),
+                    animejanai_passes,
+                ):
+                    return out_path
+            elif use_double_pass:
                 first_pass_succeeded = await self._run_model(
                     input_path, pass1_path, model_name, selected_scale, bool(enable_taa), "🎨 AI 升图 (第一阶段)"
                 )
@@ -397,12 +546,15 @@ class UpscaylUpscaler:
 
             fallback = self._model_spec(model_name).fallback
             if fallback and fallback != model_name:
-                fallback_path = self._cache_path(input_path, fallback, selected_scale, bool(enable_taa))
+                fallback_scale = selected_scale
+                if automatic_animejanai:
+                    fallback_scale = self._select_automatic_scale(input_path) or 4
+                fallback_path = self._cache_path(input_path, fallback, fallback_scale, bool(enable_taa))
                 if self._is_fresh_cache(fallback_path):
                     return fallback_path
                 logger.warning("⚠️ 模型 %s 执行失败，回退到 %s", model_name, fallback)
-                if await self._run_model(input_path, fallback_path, fallback, selected_scale, bool(enable_taa), "🎨 AI 升图回退中"):
-                    if automatic_scale:
+                if await self._run_model(input_path, fallback_path, fallback, fallback_scale, bool(enable_taa), "🎨 AI 升图回退中"):
+                    if automatic_scale and not automatic_animejanai:
                         await self._cap_automatic_output(fallback_path)
                     return fallback_path
             return input_path

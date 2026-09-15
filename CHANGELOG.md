@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.9.1
+
+- 自动动漫升图的 AnimeJaNai Balanced 改为连续原生 2x，直到最长边首次达到或超过 `3840px`；最终输出不再缩回 3840px。
+- 新增 `animejanai_auto_min_long_edge` 与 `animejanai_auto_max_passes`，默认最低长边 `3840px`、最多 `6` 轮，极小图片达到安全上限时保留现有原生输出并提示。
+- 内置 AnimeJaNai DirectML 运行器支持重叠分块推理，自动使用 `768px` 分块和 `64px` 重叠；多轮升图可在 8GB 显存显卡上稳定执行。
+- AnimeJaNai 自动缓存键加入轮数和最低长边，旧的单轮、已回缩缓存不会被复用。
+
 ## v1.9.0
 
 - 自动图片分类升级为规则 V2 + LAION CLIP ViT-B/32 低置信度复核，输出 `anime`、`photo`、`text_ui`、`uncertain` 四类结构化结果。

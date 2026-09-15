@@ -36,7 +36,7 @@ from .core.extended_platforms.handler import ExtendedPlatformsMixin
     "astrbot_plugin_link_resolver_plus",
     "Astraea35",
     "多平台解析下载 + AI升图 + AVIF压缩",
-    "1.9.0",
+    "1.9.1",
 )
 class LinkResolverPlugin(
     ConfigMixin,

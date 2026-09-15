@@ -458,7 +458,23 @@
                         "default": 3840,
                         "min": 512,
                         "max": 16384,
-                        "hint": "自动模式根据原图尺寸选择 2x/4x，并将最终长边限制在此值。"
+                        "hint": "照片和通用模型会根据原图尺寸选择 2x/4x，并将最终长边限制在此值；AnimeJaNai 使用下方独立的原生 2x 规则。"
+                    },
+                    "animejanai_auto_min_long_edge": {
+                        "description": "AnimeJaNai 自动最小长边(px)",
+                        "type": "int",
+                        "default": 3840,
+                        "min": 512,
+                        "max": 16384,
+                        "hint": "自动动漫图片会连续执行原生 2x，直到最长边首次达到或超过此值；结果保持原生尺寸，不会缩回该值。"
+                    },
+                    "animejanai_auto_max_passes": {
+                        "description": "AnimeJaNai 自动最大轮数",
+                        "type": "int",
+                        "default": 6,
+                        "min": 1,
+                        "max": 6,
+                        "hint": "防止极小图片反复放大占用过多时间和磁盘。达到安全上限后保留当时的原生输出，不插值补足。"
                     },
                     "animejanai_bin_path": {
                         "description": "AnimeJaNai 外部运行器路径",
