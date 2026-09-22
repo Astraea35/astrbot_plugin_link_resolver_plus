@@ -14,7 +14,7 @@ from .core.common.config_mixin import ConfigMixin
 from .core.common.base_mixin import BaseUtilsMixin
 from .core.common.commands_mixin import CommandsMixin
 from .core.common.font_manager import install_managed_fonts
-from .core.common.media import HybridImageClassifier, MediaEncoder, UpscaylUpscaler
+from .core.common.media import HybridImageClassifier, MediaEncoder, RemoteWorkerClient, UpscaylUpscaler
 from .core.common.image_tool_mixin import ImageToolMixin
 from .core.douyin import DOUYIN_MESSAGE_PATTERN, DouyinExtractor
 from .core.douyin.handler import DouyinMixin
@@ -36,7 +36,7 @@ from .core.extended_platforms.handler import ExtendedPlatformsMixin
     "astrbot_plugin_link_resolver_plus",
     "Astraea35",
     "多平台解析下载 + AI升图 + AVIF压缩",
-    "1.9.1",
+    "1.10.0",
 )
 class LinkResolverPlugin(
     ConfigMixin,
@@ -58,6 +58,7 @@ class LinkResolverPlugin(
 
         # 初始化任务进度与解耦的媒体管道
         self.current_task_info = None
+        self.remote_worker = RemoteWorkerClient(self)
         self.upscaler = UpscaylUpscaler(self)
         self.encoder = MediaEncoder(self)
 

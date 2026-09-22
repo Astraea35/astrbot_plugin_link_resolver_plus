@@ -589,6 +589,48 @@
                     }
                 }
             },
+            "remote_worker": {
+                "description": "远程算力节点 (双机部署)",
+                "type": "object",
+                "items": {
+                    "remote_worker_enabled": {
+                        "description": "启用远程算力节点",
+                        "type": "bool",
+                        "hint": "开启后将 AI 升图与 FFmpeg 转码请求通过 HTTP 二进制流卸载至 PC 端的 FastAPI Worker 处理。关闭时恢复为本地单机处理。",
+                        "default": false
+                    },
+                    "remote_worker_url": {
+                        "description": "远程算力节点地址",
+                        "type": "string",
+                        "hint": "PC 算力节点的访问地址，例如 http://192.168.1.100:8899",
+                        "default": "http://192.168.1.100:8899"
+                    },
+                    "remote_worker_token": {
+                        "description": "远程访问 Token 密钥 (可选)",
+                        "type": "string",
+                        "hint": "若 PC 端 Worker 配置了鉴权 token，请在此填写；内网免密可直接留空。",
+                        "default": ""
+                    },
+                    "remote_worker_timeout": {
+                        "description": "单次任务超时时间 (秒)",
+                        "type": "int",
+                        "hint": "等待远程算力返回的最长超时时间，默认 180 秒。",
+                        "default": 180,
+                        "min": 10,
+                        "max": 1800
+                    },
+                    "remote_worker_fallback_policy": {
+                        "description": "远程失败处理策略",
+                        "type": "string",
+                        "hint": "当远程 Worker 离线、超时或处理失败时的行为。优雅容错模式下自动发送未超分原图保证消息发送；严格报错模式下将直接报错中断。",
+                        "default": "优雅容错 (降级发送原图)",
+                        "options": [
+                            "优雅容错 (降级发送原图)",
+                            "严格报错 (中断并提示异常)"
+                        ]
+                    }
+                }
+            },
             "message_behavior": {
                 "description": "解析与交互",
                 "type": "object",

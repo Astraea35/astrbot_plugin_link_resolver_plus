@@ -1,4 +1,4 @@
-﻿# core/common/media/__init__.py
+# core/common/media/__init__.py
 # 统一媒体处理管道
 
 from .annotations import (
@@ -15,6 +15,7 @@ from .classifier import (
 from .encoder import MediaEncoder
 from .metadata import ImageMetadataStore
 from .process import monitor_process_percentage
+from .remote_client import RemoteWorkerClient
 from .upscaler import UpscaylUpscaler
 
 __all__ = [
@@ -23,6 +24,7 @@ __all__ = [
     "HybridImageClassifier",
     "RuleV2Classifier",
     "get_classifier",
+    "RemoteWorkerClient",
     "UpscaylUpscaler",
     "MediaEncoder",
     "ImageMetadataStore",

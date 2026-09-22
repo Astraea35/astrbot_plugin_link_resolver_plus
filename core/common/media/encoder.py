@@ -1,4 +1,4 @@
-﻿# core/common/media/encoder.py
+# core/common/media/encoder.py
 import asyncio
 import hashlib
 import math
@@ -8,6 +8,7 @@ from pathlib import Path
 from astrbot.api import logger
 from .metadata import ImageMetadataStore
 from .process import monitor_process_percentage
+from .remote_client import RemoteWorkerClient
 
 
 class MediaEncoder:
@@ -39,6 +40,7 @@ class MediaEncoder:
     def __init__(self, plugin_instance):
         self.plugin = plugin_instance
         self.metadata = ImageMetadataStore()
+        self.remote_client = getattr(plugin_instance, "remote_worker", None) or RemoteWorkerClient(plugin_instance)
 
     def _image_compression_options(self, input_path: Path) -> dict[str, object]:
         """Resolve the selected encoder and cache-safe output details."""
@@ -139,6 +141,27 @@ class MediaEncoder:
                 logger.info("⚡ [Cache Hit] 命中 7 天内的 %s 压缩缓存: %s", options["label"], output_path.name)
                 return output_path
 
+        # 远程算力节点处理分支（双机部署模式）
+        if self.remote_client.is_enabled:
+            remote_success = await self.remote_client.encode_image(
+                input_path=input_path,
+                output_path=output_path,
+                fmt=str(options["format"]),
+                cpu_used=int(options["parameters"].get("cpu_used", 1)),
+                crf=int(options["parameters"].get("crf", 18)),
+                distance=float(options["parameters"].get("distance", 1.0)),
+                effort=int(options["parameters"].get("effort", 9)),
+            )
+            if remote_success:
+                if metadata_enabled:
+                    await asyncio.to_thread(self.metadata.finalize, input_path, output_path, processing)
+                return output_path
+
+            if self.remote_client.fallback_policy == "raise_error":
+                raise RuntimeError(f"远程算力节点转码失败: {options['label']}")
+            logger.warning("⚠️ 远程算力节点转码失败，根据策略降级使用原图: %s", input_path.name)
+            return input_path
+
         cmd = [
             ffmpeg_bin,
             "-hide_banner",
@@ -222,6 +245,25 @@ class MediaEncoder:
                     return image_path
             except Exception:
                 pass
+
+        # 远程算力节点生成预览图
+        if self.remote_client.is_enabled:
+            remote_success = await self.remote_client.encode_image(
+                input_path=image_path,
+                output_path=preview_path,
+                fmt="JPEG",
+            )
+            if remote_success:
+                if metadata_enabled:
+                    await asyncio.to_thread(
+                        self.metadata.finalize,
+                        image_path,
+                        preview_path,
+                        processing,
+                    )
+                logger.info("🗼 [远程算力] JPG 预览生成完成: %s (%.1fKB)", preview_path.name, preview_path.stat().st_size / 1024)
+                return preview_path
+            return image_path
 
         # 压缩生成轻量化 JPG 预览图（保持在几百 KB ~ 1.5MB 之间）
         cmd = [

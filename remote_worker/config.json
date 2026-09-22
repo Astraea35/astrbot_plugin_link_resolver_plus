@@ -1,0 +1,17 @@
+{
+    "host": "0.0.0.0",
+    "port": 8899,
+    "token": "",
+    "max_concurrency": 1,
+    "ffmpeg_max_threads": 4,
+    "e_core_only": true,
+    "cpu_affinity_mask": "0xFF000",
+    "process_priority": "IDLE",
+    "upscayl_bin_path": "C:/Program Files/Upscayl/resources/bin/upscayl-bin.exe",
+    "upscayl_models_path": "C:/Program Files/Upscayl/resources/models",
+    "span_bin_path": "",
+    "span_models_path": "",
+    "animejanai_models_path": "",
+    "ffmpeg_bin_path": "C:/ruanjian/ffmpeg/bin/ffmpeg.exe",
+    "temp_dir": ""
+}

@@ -79,6 +79,11 @@ GENERAL_SETTING_SECTIONS = {
     "allow_ai_upscale_ffmpeg_concurrent": "concurrency",
     "ai_upscale_max_concurrent": "concurrency",
     "ffmpeg_max_concurrent": "concurrency",
+    "remote_worker_enabled": "remote_worker",
+    "remote_worker_url": "remote_worker",
+    "remote_worker_token": "remote_worker",
+    "remote_worker_timeout": "remote_worker",
+    "remote_worker_fallback_policy": "remote_worker",
 }
 
 
@@ -539,6 +544,29 @@ class ConfigMixin:
         )
         self.ffmpeg_max_concurrent = max(
             1, int(self._get_general_config_value("ffmpeg_max_concurrent", 1))
+        )
+
+        # 远程算力节点 (Remote Worker) 配置
+        self.remote_worker_enabled = bool(
+            self._get_general_config_value("remote_worker_enabled", False)
+        )
+        self.remote_worker_url = str(
+            self._get_general_config_value("remote_worker_url", "http://192.168.1.100:8899")
+        ).strip().rstrip("/")
+        self.remote_worker_token = str(
+            self._get_general_config_value("remote_worker_token", "")
+        ).strip()
+        self.remote_worker_timeout = max(
+            10,
+            int(self._get_general_config_value("remote_worker_timeout", 180)),
+        )
+        fallback_policy_raw = str(
+            self._get_general_config_value("remote_worker_fallback_policy", "优雅容错 (降级发送原图)")
+        ).strip()
+        self.remote_worker_fallback_policy = (
+            "raise_error"
+            if ("报错" in fallback_policy_raw or "raise" in fallback_policy_raw.lower())
+            else "send_original"
         )
         self.progress_report_interval = max(1, min(100, int(self._get_general_config_value("progress_report_interval", 1))))
         self.retry_count = max(

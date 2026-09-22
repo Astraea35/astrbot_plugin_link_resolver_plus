@@ -15,6 +15,7 @@ from astrbot.api import logger
 from ..paths import get_persistent_animejanai_models_path
 from .classifier import ClassificationResult, cv2_imread_safe, get_classifier
 from .process import monitor_process_percentage
+from .remote_client import RemoteWorkerClient
 
 
 @dataclass(frozen=True)
@@ -81,6 +82,7 @@ class UpscaylUpscaler:
 
     def __init__(self, plugin_instance):
         self.plugin = plugin_instance
+        self.remote_client = getattr(plugin_instance, "remote_worker", None) or RemoteWorkerClient(plugin_instance)
 
     @staticmethod
     def _resolve_model(model_setting: str | None) -> str:
@@ -517,6 +519,26 @@ class UpscaylUpscaler:
         if self._is_fresh_cache(out_path):
             logger.info("💾 [Cache Hit] 命中 7 天内的 AI 升图缓存: %s", out_path.name)
             return out_path
+
+        # 远程算力节点处理分支（双机部署模式）
+        if self.remote_client.is_enabled:
+            remote_success = await self.remote_client.upscale_image(
+                input_path=input_path,
+                output_path=out_path,
+                model_name=model_name,
+                scale=selected_scale,
+                enable_taa=bool(enable_taa),
+                passes=animejanai_passes,
+            )
+            if remote_success:
+                if automatic_scale and not automatic_animejanai:
+                    await self._cap_automatic_output(out_path)
+                return out_path
+
+            if self.remote_client.fallback_policy == "raise_error":
+                raise RuntimeError(f"远程算力节点升图失败: {model_name}")
+            logger.warning("⚠️ 远程算力节点处理失败，根据策略降级使用原图: %s", input_path.name)
+            return input_path
 
         pass1_path = out_path.with_name(f"{out_path.stem}_pass1.png")
         try:
