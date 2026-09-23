@@ -36,7 +36,7 @@ TWITTER_DOWNLOAD_HEADERS = {
 
 TWITTER_STATUS_PATTERN = (
     r"(?:https?://)?(?:www\.)?(?:twitter\.com|x\.com)/"
-    r"(?:[A-Za-z0-9_]{1,32}|i/web)/status/(?P<tid>\d+)"
+    r"(?:(?:[A-Za-z0-9_]{1,32}|i/web)/status|statuses)/(?P<tid>\d+)"
 )
 TWITTER_MESSAGE_PATTERN = rf"(?s).*(?:{TWITTER_STATUS_PATTERN})"
 
@@ -204,6 +204,21 @@ class TwitterExtractor:
             if url and media_type in {"video", "gif"} and url not in seen_videos:
                 seen_videos.add(url)
                 video_urls.append(url)
+
+        article = tweet.get("article")
+        if isinstance(article, dict):
+            article_media = [article.get("cover_media")]
+            article_media.extend(article.get("media_entities") or [])
+            for item in article_media:
+                if not isinstance(item, dict):
+                    continue
+                media_info = item.get("media_info")
+                if not isinstance(media_info, dict):
+                    continue
+                url = str(media_info.get("original_img_url") or "").strip()
+                if url and url not in seen_images:
+                    seen_images.add(url)
+                    image_urls.append(url)
 
         return TwitterResult(
             text=text,

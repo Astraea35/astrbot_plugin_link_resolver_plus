@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import sys
+import re
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -16,12 +17,22 @@ for candidate in Path(__file__).resolve().parents:
         break
 
 from data.plugins.astrbot_plugin_link_resolver.core.bilibili.handler import (
+    BILI_MESSAGE_PATTERN,
     BilibiliMixin,
 )
 
 
 class TestBilibiliCompatibility(unittest.TestCase):
     """验证 bilibili-api-python 不同响应形态下的兼容逻辑."""
+
+    def test_schemeless_short_link_and_identifier_boundaries(self):
+        harness = BilibiliMixin()
+        self.assertRegex("b23.tv/abcdef", BILI_MESSAGE_PATTERN)
+        self.assertIn(
+            "https://b23.tv/abcdef",
+            harness.extract_links_from_text("b23.tv/abcdef"),
+        )
+        self.assertIsNone(re.search(BILI_MESSAGE_PATTERN, "prefix_BV1xx411c7mD_suffix"))
 
     def test_none_current_quality_has_no_lower_quality_candidates(self):
         harness = BilibiliMixin.__new__(BilibiliMixin)

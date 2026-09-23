@@ -3,11 +3,13 @@
 
 from __future__ import annotations
 
+import re
 import sys
 import types
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+from urllib.parse import parse_qs, urlparse
 
 for candidate in Path(__file__).resolve().parents:
     if (candidate / "core").exists():
@@ -36,12 +38,41 @@ else:
         sys.modules["astrbot.api"] = api
 
     from core.douyin import DouyinExtractor
-    from core.douyin.guest_api import DouyinGuestAPI, GuestSession
-    from core.xiaohongshu import XiaohongshuExtractor
+    from core.douyin import DOUYIN_MESSAGE_PATTERN, extract_douyin_links
+    from core.douyin.guest_api import DouyinGuestAPI, GuestRequest, GuestSession
+    from core.xiaohongshu import (
+        XHS_MESSAGE_PATTERN,
+        XiaohongshuExtractor,
+        extract_xhs_links,
+    )
 
 
 @unittest.skipUnless(DEPENDENCIES_AVAILABLE, "project dependencies are not installed")
 class TestDouyinGuestSession(unittest.IsolatedAsyncioTestCase):
+    def test_modal_link_is_detected_and_parsed(self):
+        link = "https://www.douyin.com/?from=share&modal_id=123456789"
+        self.assertRegex(link, DOUYIN_MESSAGE_PATTERN)
+        self.assertEqual(extract_douyin_links(link), [link])
+        self.assertEqual(DouyinExtractor()._match_type_and_id(link), (None, "123456789"))
+
+    def test_xhs_profile_note_link_is_recognized(self):
+        link = "https://www.xiaohongshu.com/user/profile/user123/note456"
+        self.assertIsNotNone(re.search(XHS_MESSAGE_PATTERN, link))
+        self.assertEqual(extract_xhs_links(link), [link])
+
+    async def test_request_includes_guest_websign_and_source_referer(self):
+        api = DouyinGuestAPI()
+        source = "https://www.douyin.com/video/123"
+        request = await api._build_request("123", GuestSession("tt", "guest"), source)
+        params = parse_qs(urlparse(request.endpoint).query)
+        self.assertEqual(params["uifid"], ["guest"])
+        self.assertEqual(
+            params["x-secsdk-web-signature"],
+            [request.headers["x-secsdk-web-signature"]],
+        )
+        self.assertEqual(request.headers["Referer"], source)
+        self.assertEqual(request.headers["uifid"], "guest")
+
     async def test_guest_api_refreshes_session_after_empty_response(self):
         api = DouyinGuestAPI()
         sessions = iter(
@@ -60,15 +91,19 @@ class TestDouyinGuestSession(unittest.IsolatedAsyncioTestCase):
             created.append(session)
             return session
 
-        async def fake_build_endpoint(_aweme_id: str):
-            return "https://example.test/detail"
+        async def fake_build_request(_aweme_id, session, source_url):
+            self.assertIsNone(source_url)
+            return GuestRequest(
+                "https://example.test/detail",
+                {"uifid": session.uifid},
+            )
 
         async def fake_get(_client, _url, **_kwargs):
             return next(responses)
 
         with (
             patch.object(api, "_create_session", new=fake_create_session),
-            patch.object(api, "_build_endpoint", new=fake_build_endpoint),
+            patch.object(api, "_build_request", new=fake_build_request),
             patch("core.douyin.guest_api.httpx.AsyncClient.get", new=fake_get),
         ):
             detail = await api.fetch_detail("123")

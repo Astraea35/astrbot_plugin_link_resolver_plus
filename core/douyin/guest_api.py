@@ -5,14 +5,15 @@ from __future__ import annotations
 import asyncio
 import random
 import string
-import time
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 
 from .abogus import ABogus, BrowserFingerprintGenerator
 from .errors import DouyinParseError
+from .websign import encode_pairs, sign
 
 DESKTOP_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -23,11 +24,17 @@ DESKTOP_USER_AGENT = (
 @dataclass(slots=True)
 class GuestSession:
     ttwid: str
-    s_v_web_id: str
+    uifid: str
 
     @property
     def cookie(self) -> str:
-        return f"ttwid={self.ttwid}; s_v_web_id={self.s_v_web_id};"
+        return f"ttwid={self.ttwid}; UIFID_TEMP={self.uifid};"
+
+
+@dataclass(frozen=True, slots=True)
+class GuestRequest:
+    endpoint: str
+    headers: dict[str, str]
 
 
 class DouyinGuestAPI:
@@ -41,30 +48,27 @@ class DouyinGuestAPI:
         self._session_lock = asyncio.Lock()
 
     async def _create_session(self) -> GuestSession:
-        payload = (
-            '{"region":"cn","aid":1768,"needFid":false,'
-            '"service":"www.ixigua.com","migrate_info":{"ticket":"",'
-            '"source":"node"},"cbUrlProtocol":"https","union":true}'
-        )
         headers = {
             "User-Agent": DESKTOP_USER_AGENT,
-            "Content-Type": "application/json; charset=utf-8",
+            "Accept-Language": "zh-CN,zh;q=0.9",
         }
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.post(
-                "https://ttwid.bytedance.com/ttwid/union/register/",
-                content=payload,
-                headers=headers,
+        async with httpx.AsyncClient(
+            timeout=self.timeout, follow_redirects=True, headers=headers
+        ) as client:
+            response = await client.get("https://live.douyin.com/")
+            response.raise_for_status()
+            cookies = {
+                cookie.name: cookie.value
+                for cookie in client.cookies.jar
+                if cookie.value
+            }
+        ttwid = cookies.get("ttwid")
+        uifid = cookies.get("UIFID_TEMP")
+        if not ttwid or not uifid:
+            raise DouyinParseError(
+                "failed to create Douyin guest identity: missing ttwid or UIFID_TEMP"
             )
-        response.raise_for_status()
-        ttwid = response.cookies.get("ttwid")
-        alphabet = string.ascii_letters + string.digits
-        s_v_web_id = f"verify_{int(time.time() * 1000)}_" + "".join(
-            random.choices(alphabet, k=36)
-        )
-        if not ttwid or not s_v_web_id:
-            raise DouyinParseError("failed to create Douyin guest session")
-        return GuestSession(ttwid=ttwid, s_v_web_id=s_v_web_id)
+        return GuestSession(ttwid=ttwid, uifid=uifid)
 
     async def _get_session(self, *, refresh: bool = False) -> GuestSession:
         async with self._session_lock:
@@ -72,7 +76,20 @@ class DouyinGuestAPI:
                 self._session = await self._create_session()
             return self._session
 
-    async def _build_endpoint(self, aweme_id: str) -> str:
+    @staticmethod
+    def _referer_for(aweme_id: str, source_url: str | None) -> str:
+        if source_url:
+            try:
+                hostname = (urlparse(source_url).hostname or "").lower()
+            except ValueError:
+                hostname = ""
+            if hostname == "douyin.com" or hostname.endswith(".douyin.com"):
+                return source_url
+        return f"https://www.douyin.com/video/{aweme_id}"
+
+    async def _build_request(
+        self, aweme_id: str, session: GuestSession, source_url: str | None
+    ) -> GuestRequest:
         token_alphabet = string.ascii_letters + string.digits + "-_"
         ms_token = "".join(random.choices(token_alphabet, k=184))
         params: dict[str, Any] = {
@@ -104,15 +121,31 @@ class DouyinGuestAPI:
             "round_trip_time": 100,
             "msToken": ms_token,
             "aweme_id": aweme_id,
+            "uifid": session.uifid,
         }
-        param_str = "&".join(f"{key}={value}" for key, value in params.items())
+        param_pairs = [(key, str(value)) for key, value in params.items()]
+        param_str = encode_pairs(param_pairs)
         fingerprint = BrowserFingerprintGenerator.generate_fingerprint("Edge")
         signature = ABogus(
             fp=fingerprint, user_agent=DESKTOP_USER_AGENT
         ).generate_abogus(param_str, "")[1]
-        return f"{self.DETAIL_URL}?{param_str}&a_bogus={signature}"
+        signed = sign(
+            encode_pairs([*param_pairs, ("a_bogus", signature)]),
+            session.uifid,
+        )
+        return GuestRequest(
+            endpoint=f"{self.DETAIL_URL}?{signed.query}",
+            headers={
+                "Referer": self._referer_for(aweme_id, source_url),
+                "uifid": session.uifid,
+                "x-secsdk-web-signature": signed.signature,
+                "x-secsdk-web-expire": signed.timestamp,
+            },
+        )
 
-    async def fetch_detail(self, aweme_id: str) -> dict[str, Any]:
+    async def fetch_detail(
+        self, aweme_id: str, source_url: str | None = None
+    ) -> dict[str, Any]:
         """Return ``aweme_detail``, refreshing guest state once on an empty reply."""
 
         last_error = "empty response"
@@ -120,16 +153,16 @@ class DouyinGuestAPI:
         for refresh in (False, True):
             try:
                 session = await self._get_session(refresh=refresh)
-                endpoint = await self._build_endpoint(aweme_id)
+                request = await self._build_request(aweme_id, session, source_url)
                 headers = {
                     "User-Agent": DESKTOP_USER_AGENT,
-                    "Referer": "https://www.douyin.com/",
                     "Cookie": session.cookie,
+                    **request.headers,
                 }
                 async with httpx.AsyncClient(
                     timeout=self.timeout, headers=headers
                 ) as client:
-                    response = await client.get(endpoint)
+                    response = await client.get(request.endpoint)
             except httpx.HTTPError as exc:
                 last_exception = exc
                 last_error = f"network error: {exc}"

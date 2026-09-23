@@ -588,6 +588,9 @@ class BaseUtilsMixin:
                                 await asyncio.to_thread(file.write, chunk)
                 await asyncio.to_thread(temp_path.replace, output_path)
                 return bytes_written
+            except asyncio.CancelledError:
+                await asyncio.to_thread(temp_path.unlink, missing_ok=True)
+                raise
             except Exception as exc:
                 last_error = exc
                 if temp_path.exists():

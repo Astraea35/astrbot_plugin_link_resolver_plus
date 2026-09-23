@@ -11,11 +11,12 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import re
 from dataclasses import dataclass
 from html import unescape
 from typing import Any
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 import httpx
 
@@ -47,15 +48,22 @@ WEIBO_API_HEADERS = {
 }
 
 WEIBO_SHORT_LINK_PATTERN = r"(?:https?://)?t\.cn/[A-Za-z0-9]+/?"
+_WEIBO_VIDEO_PATTERN = (
+    r"(?<![0-9A-Za-z_./])(?:https?://)?"
+    r"(?:(?:www\.)?weibo\.com/tv/show/|video\.weibo\.com/show/?\?(?:[^\s'\"<>#]*&)?fid=)"
+    r"(?P<oid>\d+(?::|%3[Aa])(?:[0-9a-fA-F]{32}|\d{16,}))"
+    r"(?:[/?#&][^\s'\"<>]*)?"
+)
 _WEIBO_LONG_PATTERNS = [
     r"(?:https?://)?(?:www\.)?weibo\.com/(?P<uid>\d{10})/(?P<wid>[A-Za-z0-9]{9,16})(?:[/?#][^\s'\"<>]*)?",
-    r"(?:https?://)?m\.weibo\.cn/(?P<kind>detail|status)/(?P<wid>[A-Za-z0-9]{9,16})(?:[/?#][^\s'\"<>]*)?",
-    r"(?:https?://)?(?:www\.)?weibo\.cn/(?:detail/)?(?P<wid>[A-Za-z0-9]{9,16})(?:[/?#][^\s'\"<>]*)?",
+    r"(?:https?://)?m\.weibo\.cn/(?P<kind>detail|status|\d+)/(?P<wid>[A-Za-z0-9]{9,16})(?:[/?#][^\s'\"<>]*)?",
+    r"(?<![0-9A-Za-z_./])(?:https?://)?(?:www\.)?weibo\.cn/(?:detail/)?(?P<wid>[A-Za-z0-9]{9,16})(?:[/?#][^\s'\"<>]*)?",
 ]
 _WEIBO_LONG_DETECT_PATTERNS = [
+    _WEIBO_VIDEO_PATTERN,
     r"(?:https?://)?(?:www\.)?weibo\.com/\d{10}/[A-Za-z0-9]{9,16}(?:[/?#][^\s'\"<>]*)?",
-    r"(?:https?://)?m\.weibo\.cn/(?:detail|status)/[A-Za-z0-9]{9,16}(?:[/?#][^\s'\"<>]*)?",
-    r"(?:https?://)?(?:www\.)?weibo\.cn/(?:detail/)?[A-Za-z0-9]{9,16}(?:[/?#][^\s'\"<>]*)?",
+    r"(?:https?://)?m\.weibo\.cn/(?:detail|status|\d+)/[A-Za-z0-9]{9,16}(?:[/?#][^\s'\"<>]*)?",
+    r"(?<![0-9A-Za-z_./])(?:https?://)?(?:www\.)?weibo\.cn/(?:detail/)?[A-Za-z0-9]{9,16}(?:[/?#][^\s'\"<>]*)?",
 ]
 WEIBO_MESSAGE_PATTERN = (
     rf"(?s).*(?:{WEIBO_SHORT_LINK_PATTERN}|{'|'.join(_WEIBO_LONG_DETECT_PATTERNS)})"
@@ -144,11 +152,20 @@ class WeiboExtractor:
         ) as client:
             try:
                 response = await client.head(url)
-                if response.status_code >= 400:
+                if response.status_code >= 400 or response.url.host == "t.cn":
                     response = await client.get(url)
             except Exception:
                 response = await client.get(url)
-        return str(response.url)
+        resolved_url = str(response.url)
+        parsed = urlparse(resolved_url)
+        if parsed.hostname == "passport.weibo.com":
+            target = parse_qs(parsed.query).get("url", [""])[0]
+            if urlparse(target).hostname in {
+                "weibo.com", "www.weibo.com", "m.weibo.cn",
+                "weibo.cn", "www.weibo.cn", "video.weibo.com",
+            }:
+                return target
+        return resolved_url
 
     async def parse(self, text_or_url: str) -> WeiboResult:
         url = _normalize_url(text_or_url)
@@ -156,12 +173,46 @@ class WeiboExtractor:
             url = await self.resolve_short_url(url)
             logger.debug("🔗 微博短链接解析完成: %s", url)
 
-        weibo_id = self._extract_weibo_id(url)
+        if video_match := re.search(_WEIBO_VIDEO_PATTERN, url, re.IGNORECASE):
+            weibo_id = await self._resolve_video_mid(
+                unquote(video_match.group("oid")), url
+            )
+        else:
+            weibo_id = self._extract_weibo_id(url)
         status = await self._fetch_status(weibo_id)
         result = self._build_result(status, url)
         if not result.video_url and not result.image_urls:
             raise WeiboParseError("微博中未找到可下载媒体")
         return result
+
+    async def _resolve_video_mid(self, object_id: str, source_url: str) -> str:
+        cookies = await self._get_request_cookies()
+        try:
+            async with httpx.AsyncClient(
+                timeout=self.timeout,
+                headers={**WEIBO_API_HEADERS, "Referer": source_url},
+                cookies=cookies,
+                follow_redirects=True,
+            ) as client:
+                response = await client.post(
+                    "https://weibo.com/tv/api/component",
+                    params={"page": f"/tv/show/{object_id}"},
+                    data={
+                        "data": json.dumps(
+                            {"Component_Play_Playinfo": {"oid": object_id}}
+                        )
+                    },
+                )
+                response.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise WeiboRetryableError(f"微博视频详情请求失败: {exc}") from exc
+        try:
+            mid = str(response.json()["data"]["Component_Play_Playinfo"]["mid"])
+        except (ValueError, KeyError, TypeError) as exc:
+            raise WeiboParseError("微博视频详情缺少微博 ID") from exc
+        if not mid.isascii() or not mid.isdigit():
+            raise WeiboParseError("微博视频详情返回无效微博 ID")
+        return mid
 
     def _extract_weibo_id(self, url: str) -> str:
         for pattern in _LONG_PATTERNS:

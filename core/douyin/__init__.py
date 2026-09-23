@@ -35,6 +35,10 @@ ANDROID_HEADERS = {
 
 # region 链接正则
 DOUYIN_SHORT_LINK_PATTERN = r"(?:https?://)?(?:v|jx)\.douyin\.com/[a-zA-Z0-9_\-]+/?"
+_DOUYIN_MODAL_PATTERN = (
+    r"(?:https?://)?(?:www\.)?douyin\.com/[^\s'\"<>?#]*\?"
+    r"(?:[^\s'\"<>#]*&)?modal_id=\d+(?=[&#\s'\"<>]|$)(?:[&#][^\s'\"<>]*)?"
+)
 
 _DOUYIN_LONG_PATTERNS = [
     r"(?:https?://)?(?:www\.)?douyin\.com/(?P<ty>video|note)/(?P<vid>\d+)",
@@ -44,6 +48,7 @@ _DOUYIN_LONG_PATTERNS = [
 ]
 
 _DOUYIN_LONG_DETECT_PATTERNS = [
+    _DOUYIN_MODAL_PATTERN,
     r"(?:https?://)?(?:www\.)?douyin\.com/(?:video|note)/\d+",
     r"(?:https?://)?(?:www\.)?iesdouyin\.com/share/(?:slides|video|note)/\d+",
     r"(?:https?://)?m\.douyin\.com/share/(?:slides|video|note)/\d+",
@@ -87,7 +92,7 @@ def extract_douyin_links(text: str) -> list[str]:
     links: list[str] = []
     if not text:
         return links
-    for pattern in [DOUYIN_SHORT_LINK_PATTERN, *_DOUYIN_LONG_PATTERNS]:
+    for pattern in [DOUYIN_SHORT_LINK_PATTERN, _DOUYIN_MODAL_PATTERN, *_DOUYIN_LONG_PATTERNS]:
         for match in re.finditer(pattern, text, re.IGNORECASE):
             links.append(_normalize_url(match.group(0)))
     return links
@@ -285,7 +290,7 @@ class DouyinExtractor:
             or []
         )
         if not items:
-            item = await self.guest_api.fetch_detail(video_id)
+            item = await self.guest_api.fetch_detail(video_id, source_url)
         else:
             item = items[0] or {}
 

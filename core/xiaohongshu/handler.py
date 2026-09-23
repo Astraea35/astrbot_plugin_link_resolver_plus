@@ -19,6 +19,7 @@ from ..common import (
     get_xhs_video_path,
 )
 from ..common.base_mixin import BaseUtilsMixin
+from ..common.file_lifecycle import save_image_file
 from ..common.media import (
     build_image_processing_annotation_text,
     format_image_processing_annotation,
@@ -315,6 +316,10 @@ class XiaohongshuMixin:
                                             except Exception:
                                                 pass
                     except asyncio.CancelledError:
+                        await asyncio.to_thread(
+                            output_path.with_suffix(".tmp.part").unlink,
+                            missing_ok=True,
+                        )
                         raise
                     except Exception as e:
                         attempt_elapsed = time.perf_counter() - attempt_start
@@ -375,6 +380,10 @@ class XiaohongshuMixin:
                                             await asyncio.to_thread(temp_path.unlink, missing_ok=True)
                                         raise
                     except asyncio.CancelledError:
+                        await asyncio.to_thread(
+                            output_path.with_suffix(output_path.suffix + ".part").unlink,
+                            missing_ok=True,
+                        )
                         raise
                     except Exception as e:
                         errors.append(f"{desc}: {str(e)[:20]}")
@@ -496,7 +505,7 @@ class XiaohongshuMixin:
                 cover_path=cover_path,
                 is_video=is_video,
             )
-            await asyncio.to_thread(image.save, card_path, format="PNG")
+            await save_image_file(image, card_path, format="PNG")
             logger.info("🖼️ 小红书渲染卡片生成成功: %s", card_path.name)
             return card_path
         except asyncio.CancelledError:
@@ -614,6 +623,23 @@ class XiaohongshuMixin:
     async def _process_xhs(
         self, event: AstrMessageEvent, target_link: str, is_from_card: bool = False
     ):
+        media_paths: list[Path] = []
+        try:
+            async for result in XiaohongshuMixin._process_xhs_inner(
+                self, event, target_link, is_from_card, media_paths
+            ):
+                yield result
+        finally:
+            if media_paths:
+                await self.cleanup_files(media_paths, [])
+
+    async def _process_xhs_inner(
+        self,
+        event: AstrMessageEvent,
+        target_link: str,
+        is_from_card: bool,
+        media_paths: list[Path],
+    ):
         process_start = time.perf_counter()
         timing = {}
 
@@ -696,7 +722,6 @@ class XiaohongshuMixin:
             return
 
         media_components: list[object] = []
-        media_paths: list[Path] = []
         image_paths: list[Path] = []
         cover_path: Path | None = None
         avif_files_to_send: list[Path] = []
@@ -746,6 +771,7 @@ class XiaohongshuMixin:
                             file_id=file_id,
                             referer=result.source_url,
                         )
+                        media_paths.append(path)
                         return (i, path, None)
                     except Exception as exc:
                         return (i, None, exc)
@@ -754,7 +780,6 @@ class XiaohongshuMixin:
                 for i, path, exc in dl_results:
                     if path is not None:
                         image_paths.append(path)
-                        media_paths.append(path)
                         media_components.append(Image.fromFileSystem(str(path.resolve())))
                     else:
                         failed_images += 1
@@ -1036,9 +1061,6 @@ class XiaohongshuMixin:
             timing.get("send", 0),
             total_elapsed,
         )
-
-        if media_paths:
-            await self.cleanup_files(media_paths, [])
 
     # endregion
 

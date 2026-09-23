@@ -9,8 +9,10 @@ Run inside AstrBot container:
 from __future__ import annotations
 
 import sys
+import re
 import unittest
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
 for candidate in Path(__file__).resolve().parents:
     if (candidate / "data" / "plugins").exists():
@@ -20,6 +22,7 @@ for candidate in Path(__file__).resolve().parents:
         break
 
 from data.plugins.astrbot_plugin_link_resolver.core.weibo import (
+    WEIBO_MESSAGE_PATTERN,
     WeiboExtractor,
     extract_weibo_links,
 )
@@ -37,6 +40,30 @@ class TestWeiboExtractor(unittest.IsolatedAsyncioTestCase):
         self.assertIn("https://weibo.com/1234567890/AbCdEfGhI", links)
         self.assertIn("https://m.weibo.cn/status/AbCdEfGhI", links)
         self.assertIn("https://t.cn/A6abcXYZ", links)
+
+    async def test_video_object_link_resolves_to_status_mid(self):
+        object_id = "1034:1234567890123456"
+        link = f"https://weibo.com/tv/show/{object_id}"
+        self.assertRegex(link, WEIBO_MESSAGE_PATTERN)
+        self.assertEqual(extract_weibo_links(link), [link])
+        extractor = WeiboExtractor()
+        with (
+            patch.object(extractor, "_resolve_video_mid", new=AsyncMock(return_value="1234567890")) as resolve,
+            patch.object(extractor, "_fetch_status", new=AsyncMock(return_value={
+                "id": "1234567890", "mblogid": "AbCdEfGhI",
+                "page_info": {"type": "video", "media_info": {
+                    "stream_url": "https://example.com/video.mp4"
+                }},
+            })) as fetch,
+        ):
+            await extractor.parse(link)
+        resolve.assert_awaited_once_with(object_id, link)
+        fetch.assert_awaited_once_with("1234567890")
+
+    def test_mobile_numeric_path_is_detected(self):
+        link = "https://m.weibo.cn/1234567890/AbCdEfGhI"
+        self.assertRegex(link, WEIBO_MESSAGE_PATTERN)
+        self.assertEqual(extract_weibo_links(link), [link])
 
     async def test_user_cookie_is_preferred_over_visitor_cookie(self):
         extractor = WeiboExtractor()

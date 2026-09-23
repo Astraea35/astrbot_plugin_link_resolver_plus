@@ -43,6 +43,28 @@ class TestTwitterExtractor(unittest.IsolatedAsyncioTestCase):
         self.assertIn("https://x.com/another/status/9876543210987654321", links)
         self.assertIn("https://twitter.com/i/web/status/112233445566778899", links)
 
+    def test_statuses_link_and_article_images(self):
+        link = "https://x.com/statuses/1234567890123456789"
+        self.assertEqual(extract_twitter_links(link), [link])
+        result = TwitterExtractor()._build_result(
+            {"tweet": {
+                "article": {
+                    "cover_media": {
+                        "media_info": {"original_img_url": "https://img.test/cover.jpg"}
+                    },
+                    "media_entities": [
+                        {"media_info": {"original_img_url": "https://img.test/body.jpg"}},
+                        {"media_info": {"original_img_url": "https://img.test/cover.jpg"}},
+                    ],
+                },
+            }},
+            link,
+        )
+        self.assertEqual(
+            result.image_urls,
+            ["https://img.test/cover.jpg", "https://img.test/body.jpg"],
+        )
+
     def test_build_result_maps_image_tweet_fields(self):
         extractor = TwitterExtractor()
         payload = {

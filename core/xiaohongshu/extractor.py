@@ -16,10 +16,11 @@ from astrbot.api import logger
 # region 常量
 XHS_REQUEST_TIMEOUT_SEC = 30.0
 XHS_SHORT_LINK_PATTERN = r"(?:https?://)?(?:www\.)?xhslink\.(?:com|cn)/[A-Za-z0-9._?%&+=/#@-]+"
+_XHS_NOTE_PATH = r"/(?:explore|discovery/item|user/profile/[0-9a-zA-Z]+)/"
 XHS_MESSAGE_PATTERN = (
     r"(?s).*(?:"
     + XHS_SHORT_LINK_PATTERN
-    + r"|(?:https?://)?(?:www\.)?xiaohongshu\.com/(?:explore|discovery/item)/[0-9a-zA-Z]+)"
+    + rf"|(?:https?://)?(?:www\.)?xiaohongshu\.com{_XHS_NOTE_PATH}[0-9a-zA-Z]+)"
 )
 
 # User-Agent
@@ -63,9 +64,9 @@ _EXPLORE_HEADERS = {
 
 
 _SHORT_RE = re.compile(XHS_SHORT_LINK_PATTERN, re.IGNORECASE)
-_NOTE_ID_RE = re.compile(r"/(?:explore|discovery/item)/(?P<id>[0-9a-zA-Z]+)", re.IGNORECASE)
+_NOTE_ID_RE = re.compile(rf"{_XHS_NOTE_PATH}(?P<id>[0-9a-zA-Z]+)", re.IGNORECASE)
 _LONG_RE = re.compile(
-    r"(?:https?://)?(?:www\.)?xiaohongshu\.com/(?:explore|discovery/item)/[0-9a-zA-Z]+[A-Za-z0-9._%?&+=/#@-]*",
+    rf"(?:https?://)?(?:www\.)?xiaohongshu\.com{_XHS_NOTE_PATH}[0-9a-zA-Z]+[A-Za-z0-9._%?&+=/#@-]*",
     re.IGNORECASE
 )
 # endregion

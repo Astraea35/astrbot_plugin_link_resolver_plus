@@ -253,6 +253,88 @@ class TestSummaryModeHandlers(unittest.IsolatedAsyncioTestCase):
         )
         plugin._send_file_via_api.assert_awaited_once_with(event, avif_path)
 
+    async def test_process_douyin_cleans_media_when_send_fails(self):
+        event = DummyEvent()
+        event.send = AsyncMock(side_effect=RuntimeError("send failed"))
+        with tempfile.TemporaryDirectory() as tmpdir:
+            video_path = Path(tmpdir) / "douyin.mp4"
+            video_path.write_bytes(b"video")
+            plugin = SimpleNamespace(
+                douyin_enabled=True,
+                douyin_render_card=False,
+                douyin_merge_send=False,
+                douyin_max_media=99,
+                retry_count=0,
+                max_video_size_mb=200,
+                douyin_extractor=SimpleNamespace(
+                    parse=AsyncMock(return_value=DouyinResult(
+                        title="视频", author="作者", author_avatar=None,
+                        duration=10, video_url="https://example.com/video.mp4",
+                        cover_url=None, image_urls=[], dynamic_urls=[],
+                        source_url="https://www.douyin.com/video/123",
+                    ))
+                ),
+                _refresh_config=lambda: None,
+                _send_reaction_emoji=AsyncMock(),
+                _download_douyin_video=AsyncMock(return_value=video_path),
+                _video_component_from_path=AsyncMock(return_value=object()),
+                _prepare_component_for_merge_send=AsyncMock(
+                    side_effect=lambda component: component
+                ),
+                cleanup_files=AsyncMock(),
+            )
+            with self.assertRaisesRegex(RuntimeError, "send failed"):
+                await DouyinMixin._process_douyin(
+                    plugin, event, "https://www.douyin.com/video/123"
+                )
+            plugin.cleanup_files.assert_awaited_once_with([video_path], [])
+
+    async def test_process_xhs_cleans_download_when_generator_closes(self):
+        event = DummyEvent()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            image_path = Path(tmpdir) / "xhs.jpg"
+            image_path.write_bytes(b"image")
+            plugin = SimpleNamespace(
+                xhs_enabled=True,
+                xhs_render_card=False,
+                xhs_merge_send=False,
+                xhs_max_media=99,
+                xhs_concurrent_download=True,
+                xhs_enable_ai_upscale=False,
+                enable_global_ffmpeg_compress=False,
+                xhs_auto_unmerge_threshold_mb=0,
+                xhs_qq_image_size_limit_mb=0,
+                retry_count=0,
+                max_video_size_mb=200,
+                xhs_extractor=SimpleNamespace(
+                    parse=AsyncMock(return_value=XiaohongshuResult(
+                        title="笔记", author="作者", text="正文",
+                        image_urls=["https://example.com/xhs.jpg"],
+                        file_ids=[], video_url=None, cover_url=None,
+                        source_url="https://www.xiaohongshu.com/explore/abc123",
+                        note_id="abc123",
+                    ))
+                ),
+                _refresh_config=lambda: None,
+                _send_reaction_emoji=AsyncMock(),
+                _download_xhs_image_with_fallback=AsyncMock(return_value=image_path),
+                _post_process_xhs_image=AsyncMock(return_value=(
+                    image_path, None, False, "未检测", None, None, {},
+                )),
+                _build_xhs_summary=lambda *args, **kwargs: "小红书摘要",
+                _prepare_component_for_merge_send=AsyncMock(
+                    side_effect=lambda component: component
+                ),
+                _get_merge_sender_uin=lambda event: "10001",
+                cleanup_files=AsyncMock(),
+            )
+            results = XiaohongshuMixin._process_xhs(
+                plugin, event, "https://www.xiaohongshu.com/explore/abc123"
+            )
+            await anext(results)
+            await results.aclose()
+            plugin.cleanup_files.assert_awaited_once_with([image_path], [])
+
     async def test_process_xhs_force_unmerge_sends_summary_before_images(self):
         event = DummyEvent()
         original_link = (
@@ -371,6 +453,7 @@ class TestSummaryModeHandlers(unittest.IsolatedAsyncioTestCase):
                 ),
                 _download_video=AsyncMock(return_value=(video_path, "1080P")),
                 _assert_video_file_ready=lambda path, *_: path.stat().st_size,
+                _video_component_from_path=AsyncMock(return_value=object()),
                 _render_bili_card=AsyncMock(),
                 _prepare_component_for_merge_send=AsyncMock(
                     side_effect=lambda component: component
@@ -418,6 +501,7 @@ class TestSummaryModeHandlers(unittest.IsolatedAsyncioTestCase):
             "链接：https://www.bilibili.com/video/BV1xx411c7mD", first_component.text
         )
         self.assertNotIn("链接：https://b23.tv/", first_component.text)
+        plugin.cleanup_files.assert_awaited_once_with([video_path], [])
 
 
 if __name__ == "__main__":
