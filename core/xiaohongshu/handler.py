@@ -2,6 +2,7 @@
 import asyncio
 import base64
 import re
+import shutil
 import time
 import uuid
 from pathlib import Path
@@ -140,6 +141,10 @@ class XiaohongshuMixin:
                     headers=self._xhs_download_headers(referer),
                     retries=max(1, int(getattr(self, "retry_count", 3))),
                 )
+                if getattr(self, "xhs_remove_watermark", True):
+                    output_path = await self._remove_xhs_watermark_if_needed(
+                        output_path, request_id
+                    )
                 return output_path
             except asyncio.CancelledError:
                 raise
@@ -167,6 +172,137 @@ class XiaohongshuMixin:
         if size_limit_error:
             raise size_limit_error
         raise RuntimeError("小红书视频下载失败")
+
+    async def _remove_xhs_watermark_if_needed(
+        self, video_path: Path, request_id: str
+    ) -> Path:
+        """通过本地 FFmpeg 智能自适应去除小红书视频右下角水印 (delogo 滤镜)。"""
+        if not video_path.exists() or video_path.stat().st_size == 0:
+            return video_path
+
+        ffmpeg_bin = getattr(self, "ffmpeg_bin_path", "ffmpeg") or "ffmpeg"
+        if not shutil.which(ffmpeg_bin):
+            for candidate in (
+                r"C:\Program Files\ffmpeg\bin\ffmpeg.exe",
+                r"C:\ffmpeg\bin\ffmpeg.exe",
+            ):
+                if Path(candidate).is_file():
+                    ffmpeg_bin = candidate
+                    break
+            else:
+                logger.debug("未找到可用 FFmpeg，跳过小红书视频去水印")
+                return video_path
+
+        delogo_path = video_path.with_name(f"{video_path.stem}_delogo.mp4")
+        try:
+            # 1. 探测视频分辨率
+            probe_cmd = [ffmpeg_bin, "-hide_banner", "-i", str(video_path.resolve())]
+            proc = await asyncio.create_subprocess_exec(
+                *probe_cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            _, stderr = await proc.communicate()
+            stderr_text = stderr.decode("utf-8", errors="ignore")
+
+            match = re.search(r"Video:.*?,\s*(\d{2,5})x(\d{2,5})", stderr_text)
+            if not match:
+                logger.warning("⚠️ 无法获取小红书视频分辨率，跳过水印去除: %s", video_path.name)
+                return video_path
+
+            w = int(match.group(1))
+            h = int(match.group(2))
+
+            # 2. 根据横屏/竖屏计算自适应右下角水印坐标
+            if w >= h:
+                logo_w = max(40, int(w * 0.044))
+                logo_h = max(20, int(h * 0.040))
+                margin_r = max(8, int(w * 0.008))
+                margin_b = max(8, int(h * 0.015))
+            else:
+                logo_w = max(60, int(w * 0.130))
+                logo_h = max(25, int(h * 0.026))
+                margin_r = max(10, int(w * 0.020))
+                margin_b = max(12, int(h * 0.015))
+
+            x = max(0, min(w - logo_w, w - logo_w - margin_r))
+            y = max(0, min(h - logo_h, h - logo_h - margin_b))
+            if x + logo_w > w:
+                logo_w = w - x
+            if y + logo_h > h:
+                logo_h = h - y
+
+            # 3. 申请 FFmpeg 全局并发槽位并执行 delogo 滤镜
+            filter_expr = f"delogo=x={x}:y={y}:w={logo_w}:h={logo_h}"
+            cmd = [
+                ffmpeg_bin,
+                "-hide_banner",
+                "-y",
+                "-i",
+                str(video_path.resolve()),
+                "-vf",
+                filter_expr,
+                "-c:v",
+                "libx264",
+                "-preset",
+                "veryfast",
+                "-crf",
+                "20",
+                "-c:a",
+                "copy",
+                str(delogo_path.resolve()),
+            ]
+
+            slot = getattr(self, "ffmpeg_slot", None)
+            if slot is not None:
+                async with slot:
+                    proc = await asyncio.create_subprocess_exec(
+                        *cmd,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                    )
+                    await proc.communicate()
+            else:
+                proc = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                await proc.communicate()
+
+            if (
+                proc.returncode == 0
+                and delogo_path.exists()
+                and delogo_path.stat().st_size > 0
+            ):
+                try:
+                    await asyncio.to_thread(delogo_path.replace, video_path)
+                    logger.info(
+                        "✨ [小红书视频去水印] 成功平滑去除右下角水印: %s (%dx%d, 区域 %dx%d+%d+%d)",
+                        video_path.name,
+                        w,
+                        h,
+                        logo_w,
+                        logo_h,
+                        x,
+                        y,
+                    )
+                    return video_path
+                except Exception:
+                    await asyncio.to_thread(video_path.unlink, missing_ok=True)
+                    return delogo_path
+            else:
+                logger.warning(
+                    "⚠️ FFmpeg 小红书视频去水印失败 (exit %d)，保留原视频", proc.returncode
+                )
+                if delogo_path.exists():
+                    await asyncio.to_thread(delogo_path.unlink, missing_ok=True)
+                return video_path
+        except Exception as exc:
+            logger.warning("⚠️ 小红书视频去水印异常，保留原视频: %s", str(exc))
+            if delogo_path.exists():
+                await asyncio.to_thread(delogo_path.unlink, missing_ok=True)
+            return video_path
 
     async def _download_xhs_image_with_fallback(
         self,

@@ -368,6 +368,12 @@
                 "hint": "开启后将下载并发送小红书实况图背后的短视频 MP4；关闭则仅发送图片。若NapCat异机部署(如NAS)且未配置共享存储，短视频将自动转Base64流发送。",
                 "default": true
             },
+            "remove_watermark": {
+                "description": "小红书视频智能去水印",
+                "type": "bool",
+                "hint": "开启后，通过本地 FFmpeg 自动平滑去除小红书视频及实况短视频右下角的水印。",
+                "default": true
+            },
             "upscayl_model_name": {
                 "description": "Upscayl AI 模型",
                 "type": "string",

@@ -313,6 +313,7 @@ class ConfigMixin:
         )
         self.xhs_image_merge_send = bool(self._get_config_value("xhs_settings.image_merge_send", False))
         self.xhs_enable_live_photo_video = bool(self._get_config_value("xhs_settings.enable_live_photo_video", True))
+        self.xhs_remove_watermark = bool(self._get_config_value("xhs_settings.remove_watermark", True))
         self.xhs_enable_ai_upscale = bool(
             self._get_config_value(
                 "xhs_settings.enable_ai_upscale",
