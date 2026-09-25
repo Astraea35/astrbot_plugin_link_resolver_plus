@@ -1011,6 +1011,12 @@ class XiaohongshuMixin:
         else:
             should_merge = self.xhs_merge_send
 
+        # 将 Live Photo 实况短视频从图文合并转发中剥离，避免因 QQ 协议端在 Windows 下解析视频路径失败导致图文整体发送失败
+        live_video_components: list[Video] = []
+        if is_image_post:
+            live_video_components = [c for c in media_components if isinstance(c, Video)]
+            media_components = [c for c in media_components if not isinstance(c, Video)]
+
         # 1. 合并转发/逐条发送图片及 Live Photo MP4 视频
         if should_merge:
             nodes = Nodes([])
@@ -1020,14 +1026,49 @@ class XiaohongshuMixin:
             for component in media_components:
                 merge_component = await self._prepare_component_for_merge_send(component)
                 nodes.nodes.append(Node(uin=sender_uin, content=[merge_component]))
-            yield event.chain_result([nodes])
+            if nodes.nodes:
+                yield event.chain_result([nodes])
+
+            # 实况图短视频在图文合并转发之后，独立逐条发送
+            if live_video_components:
+                logger.info("🎬 开始独立发送 %d 个小红书实况短视频", len(live_video_components))
+                for idx, video_comp in enumerate(live_video_components):
+                    try:
+                        await asyncio.sleep(1.0)
+                        send_comp = video_comp
+                        comp_file = getattr(send_comp, "file", "") or ""
+                        comp_path = getattr(send_comp, "path", "") or ""
+                        if comp_path and Path(comp_path).exists() and comp_file.startswith("file:///"):
+                            # 兼容 NapCat: 避免 Windows 下 file:///C:/ 被截取为 /C:/ 导致 ENOENT 报错
+                            send_comp = Video(file=str(Path(comp_path).resolve()), path=comp_path)
+                        yield event.chain_result([send_comp])
+                    except Exception as exc:
+                        logger.warning("⚠️ 发送第 %d 个小红书实况短视频失败: %s", idx + 1, str(exc))
         else:
             if is_image_post:
                 if summary_text:
                     yield event.chain_result([Plain(summary_text)])
+                # 逐条发送图片
                 for i, component in enumerate(media_components):
-                    yield event.chain_result([component])
-                    if i < len(media_components) - 1:
+                    try:
+                        yield event.chain_result([component])
+                    except Exception as exc:
+                        logger.warning("⚠️ 逐条发送小红书图片 [%d/%d] 失败: %s", i + 1, len(media_components), str(exc))
+                    if i < len(media_components) - 1 or live_video_components:
+                        await asyncio.sleep(2.0)
+
+                # 逐条发送实况短视频
+                for idx, video_comp in enumerate(live_video_components):
+                    try:
+                        send_comp = video_comp
+                        comp_file = getattr(send_comp, "file", "") or ""
+                        comp_path = getattr(send_comp, "path", "") or ""
+                        if comp_path and Path(comp_path).exists() and comp_file.startswith("file:///"):
+                            send_comp = Video(file=str(Path(comp_path).resolve()), path=comp_path)
+                        yield event.chain_result([send_comp])
+                    except Exception as exc:
+                        logger.warning("⚠️ 发送第 %d 个小红书实况短视频失败: %s", idx + 1, str(exc))
+                    if idx < len(live_video_components) - 1:
                         await asyncio.sleep(2.0)
             else:
                 for component in media_components:
