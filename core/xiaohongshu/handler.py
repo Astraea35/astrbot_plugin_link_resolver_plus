@@ -1,5 +1,6 @@
 # region 导入
 import asyncio
+import base64
 import re
 import time
 import uuid
@@ -807,8 +808,9 @@ class XiaohongshuMixin:
                         logger.warning("⚠️ 小红书图片下载失败%s [%d/%d]: %s", source_tag, i + 1, len(image_urls), str(exc))
 
             # 🚀【新增】：下载并挂载 Live Photo 实况图 MP4 视频文件
+            enable_live_video = getattr(self, "xhs_enable_live_photo_video", True)
             live_photo_urls = getattr(result, "live_photo_urls", [])
-            if live_photo_urls:
+            if enable_live_video and live_photo_urls:
                 for i, live_url in enumerate(live_photo_urls):
                     if live_url:
                         try:
@@ -1017,6 +1019,26 @@ class XiaohongshuMixin:
             live_video_components = [c for c in media_components if isinstance(c, Video)]
             media_components = [c for c in media_components if not isinstance(c, Video)]
 
+        def _prepare_live_video_for_send(video_comp: Video) -> Video:
+            comp_file = getattr(video_comp, "file", "") or ""
+            comp_path = getattr(video_comp, "path", "") or ""
+            if comp_path and Path(comp_path).exists():
+                has_container = bool(getattr(self, "napcat_media_container_path", ""))
+                file_size = Path(comp_path).stat().st_size
+                # 异机 NapCat（如部署在 NAS/Docker 远程主机，未配置容器共享路径）：
+                # 实况短视频通常只有 1~2MB，直接转 Base64 穿透发送，避免远程 NapCat 无法访问本机本地路径
+                if not has_container and file_size <= 20 * 1024 * 1024:
+                    try:
+                        with open(comp_path, "rb") as vf:
+                            b64_data = base64.b64encode(vf.read()).decode("ascii")
+                        return Video.fromBase64(b64_data)
+                    except Exception as e:
+                        logger.debug("转码 Live Photo Base64 失败，回退文件路径: %s", e)
+                # 同机 NapCat：纠正 Windows 下 file:///C:/ 路径为绝对文件路径避免 ENOENT
+                if comp_file.startswith("file:///"):
+                    return Video(file=str(Path(comp_path).resolve()), path=comp_path)
+            return video_comp
+
         # 1. 合并转发/逐条发送图片及 Live Photo MP4 视频
         if should_merge:
             nodes = Nodes([])
@@ -1035,12 +1057,7 @@ class XiaohongshuMixin:
                 for idx, video_comp in enumerate(live_video_components):
                     try:
                         await asyncio.sleep(1.0)
-                        send_comp = video_comp
-                        comp_file = getattr(send_comp, "file", "") or ""
-                        comp_path = getattr(send_comp, "path", "") or ""
-                        if comp_path and Path(comp_path).exists() and comp_file.startswith("file:///"):
-                            # 兼容 NapCat: 避免 Windows 下 file:///C:/ 被截取为 /C:/ 导致 ENOENT 报错
-                            send_comp = Video(file=str(Path(comp_path).resolve()), path=comp_path)
+                        send_comp = _prepare_live_video_for_send(video_comp)
                         yield event.chain_result([send_comp])
                     except Exception as exc:
                         logger.warning("⚠️ 发送第 %d 个小红书实况短视频失败: %s", idx + 1, str(exc))
@@ -1060,11 +1077,7 @@ class XiaohongshuMixin:
                 # 逐条发送实况短视频
                 for idx, video_comp in enumerate(live_video_components):
                     try:
-                        send_comp = video_comp
-                        comp_file = getattr(send_comp, "file", "") or ""
-                        comp_path = getattr(send_comp, "path", "") or ""
-                        if comp_path and Path(comp_path).exists() and comp_file.startswith("file:///"):
-                            send_comp = Video(file=str(Path(comp_path).resolve()), path=comp_path)
+                        send_comp = _prepare_live_video_for_send(video_comp)
                         yield event.chain_result([send_comp])
                     except Exception as exc:
                         logger.warning("⚠️ 发送第 %d 个小红书实况短视频失败: %s", idx + 1, str(exc))

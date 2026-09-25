@@ -36,7 +36,7 @@ from .core.extended_platforms.handler import ExtendedPlatformsMixin
     "astrbot_plugin_link_resolver_plus",
     "Astraea35",
     "多平台解析下载 + AI升图 + AVIF压缩",
-    "1.10.2",
+    "1.10.3",
 )
 class LinkResolverPlugin(
     ConfigMixin,
@@ -239,7 +239,10 @@ class LinkResolverPlugin(
                 self._register_parse_task("json-xhs", event)
                 event.should_call_llm(True)
                 async for result in self._process_xhs(event, xhs_links[0], is_from_card=True):
-                    await event.send(result)
+                    try:
+                        await event.send(result)
+                    except Exception as send_err:
+                        logger.warning("⚠️ 发送小红书结果分段失败: %s", send_err)
                 return
             finally:
                 await self._recall_notify(event, notify_id)

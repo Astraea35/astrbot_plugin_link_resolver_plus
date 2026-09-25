@@ -362,6 +362,12 @@
                 "hint": "仅对图文笔记生效。开启时发送卡片+图片的合并转发；关闭时逐张单独发送图片。",
                 "default": false
             },
+            "enable_live_photo_video": {
+                "description": "下载实况图(Live Photo)短视频",
+                "type": "bool",
+                "hint": "开启后将下载并发送小红书实况图背后的短视频 MP4；关闭则仅发送图片。若NapCat异机部署(如NAS)且未配置共享存储，短视频将自动转Base64流发送。",
+                "default": true
+            },
             "upscayl_model_name": {
                 "description": "Upscayl AI 模型",
                 "type": "string",
