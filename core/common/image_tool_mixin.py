@@ -74,6 +74,12 @@ class ImageToolMixin:
 
         for component in message:
             if isinstance(component, Reply) or type(component).__name__ == "Reply":
+                for quoted in getattr(component, "chain", None) or []:
+                    image_url = self._image_url_from_component(quoted)
+                    if image_url:
+                        urls.append(image_url)
+                if urls:
+                    continue
                 reply_id = getattr(component, "id", None) or getattr(component, "message_id", None)
                 if reply_id:
                     try:
@@ -181,7 +187,11 @@ class ImageToolMixin:
             if local_path.is_file():
                 content = local_path.read_bytes()
             else:
-                async with httpx.AsyncClient(follow_redirects=True, timeout=30) as client:
+                async with httpx.AsyncClient(
+                    follow_redirects=True, timeout=30,
+                    proxy=getattr(self, "download_proxy", "") or None,
+                    trust_env=not bool(getattr(self, "download_proxy", "")),
+                ) as client:
                     response = await client.get(url)
                     response.raise_for_status()
                     content = response.content

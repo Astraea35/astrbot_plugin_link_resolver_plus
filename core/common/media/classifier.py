@@ -466,7 +466,9 @@ class HybridImageClassifier:
             async with self._directory_download_lock():
                 timeout = httpx.Timeout(30.0, read=300.0)
                 async with httpx.AsyncClient(
-                    follow_redirects=True, timeout=timeout
+                    follow_redirects=True, timeout=timeout,
+                    proxy=getattr(self.plugin, "download_proxy", "") or None,
+                    trust_env=not bool(getattr(self.plugin, "download_proxy", "")),
                 ) as client:
                     checksum_temporary = await self._download_file(
                         client, f"{base_url}/{CHECKSUMS_FILE_NAME}", checksum_path

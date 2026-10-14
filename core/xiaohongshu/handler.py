@@ -393,7 +393,7 @@ class XiaohongshuMixin:
                         async with aiohttp.ClientSession(
                             headers=headers, timeout=timeout
                         ) as session:
-                            async with session.get(cand_url) as resp:
+                            async with session.get(cand_url, proxy=getattr(self, "download_proxy", "") or None) as resp:
                                 attempt_elapsed = time.perf_counter() - attempt_start
 
                                 if resp.status == 200:
@@ -488,7 +488,7 @@ class XiaohongshuMixin:
                     try:
                         timeout = aiohttp.ClientTimeout(total=300, connect=30)
                         async with aiohttp.ClientSession(headers=hv, timeout=timeout) as session:
-                            async with session.get(cand_url) as resp:
+                            async with session.get(cand_url, proxy=getattr(self, "download_proxy", "") or None) as resp:
                                 if resp.status == 200:
                                     temp_path = output_path.with_suffix(output_path.suffix + ".part")
                                     content_len = 0
@@ -1080,7 +1080,7 @@ class XiaohongshuMixin:
             return
 
         summary_enabled = bool(image_paths) or bool(result.video_url and self.xhs_merge_send)
-        render_card = getattr(self, "xhs_render_card", False)
+        render_card = getattr(self, "xhs_render_card", False) and event.get_platform_name() != "telegram"
         is_video_post = bool(result.video_url and not image_paths)
         summary_text = None
         if summary_enabled and not render_card:

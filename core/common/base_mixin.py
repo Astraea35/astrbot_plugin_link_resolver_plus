@@ -536,7 +536,11 @@ class BaseUtilsMixin:
     # region 下载与网络流工具
     async def _probe_stream_size(self, url: str, cookies: dict = None, headers: dict = None) -> int | None:
         try:
-            async with httpx.AsyncClient(timeout=10.0, headers=headers or {}, cookies=cookies or {}) as client:
+            async with httpx.AsyncClient(
+                timeout=10.0, headers=headers or {}, cookies=cookies or {},
+                proxy=getattr(self, "download_proxy", "") or None,
+                trust_env=not bool(getattr(self, "download_proxy", "")),
+            ) as client:
                 response = await client.head(url, follow_redirects=True)
                 if response.status_code >= 400:
                     return None
@@ -571,7 +575,11 @@ class BaseUtilsMixin:
         last_error = None
         for attempt in range(retries):
             try:
-                async with httpx.AsyncClient(timeout=None, headers=headers or {}, cookies=cookies or {}) as client:
+                async with httpx.AsyncClient(
+                    timeout=None, headers=headers or {}, cookies=cookies or {},
+                    proxy=getattr(self, "download_proxy", "") or None,
+                    trust_env=not bool(getattr(self, "download_proxy", "")),
+                ) as client:
                     async with client.stream("GET", url, follow_redirects=True) as response:
                         response.raise_for_status()
                         content_length = response.headers.get("Content-Length")
@@ -614,7 +622,11 @@ class BaseUtilsMixin:
 
     async def download_thumbnail(self, url: str, save_path: Path) -> bool:
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            async with httpx.AsyncClient(
+                timeout=10.0,
+                proxy=getattr(self, "download_proxy", "") or None,
+                trust_env=not bool(getattr(self, "download_proxy", "")),
+            ) as client:
                 response = await client.get(url)
                 if response.status_code == 200:
                     await asyncio.to_thread(save_path.write_bytes, response.content)
@@ -705,6 +717,13 @@ class BaseUtilsMixin:
         return Comp.Video.fromURL(callback_url, cover=getattr(component, "cover", ""), c=getattr(component, "c", 2))
 
     async def _send_notify(self, event: AstrMessageEvent, text: str) -> str | None:
+        if event.get_platform_name() == "telegram":
+            event.set_extra("nas_bridge_status", True)
+            try:
+                await event.send(MessageChain([Comp.Plain(text)]))
+            finally:
+                event.set_extra("nas_bridge_status", False)
+            return str(getattr(event, "request_id", "") or event.message_obj.message_id)
         try:
             bot = getattr(event, "bot", None)
             call_action = getattr(bot, "call_action", None) or getattr(getattr(bot, "api", None), "call_action", None)
@@ -725,6 +744,8 @@ class BaseUtilsMixin:
         return None
 
     async def _recall_notify(self, event: AstrMessageEvent, msg_id: str | None):
+        if event.get_platform_name() == "telegram":
+            return
         if not msg_id:
             return
         try:
@@ -741,6 +762,9 @@ class BaseUtilsMixin:
             if not file_path.exists():
                 logger.warning("⚠️ 文件不存在: %s", file_path)
                 return False
+            if event.get_platform_name() == "telegram":
+                await event.send(MessageChain([Comp.File(name=file_path.name, file=str(file_path))]))
+                return True
 
             bot = getattr(event, "bot", None)
             call_action = getattr(bot, "call_action", None) or getattr(getattr(bot, "api", None), "call_action", None)

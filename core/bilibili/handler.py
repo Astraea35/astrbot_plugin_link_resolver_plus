@@ -1293,7 +1293,7 @@ class BilibiliMixin:
             render_start = time.perf_counter()
             card_path = None
             summary_text = None
-            render_card = getattr(self, "bili_render_card", False)
+            render_card = getattr(self, "bili_render_card", False) and event.get_platform_name() != "telegram"
             if self.bili_merge_send and render_card:
                 card_path = await self._render_bili_card(
                     title=title,

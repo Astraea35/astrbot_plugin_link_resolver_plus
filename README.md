@@ -1,5 +1,15 @@
 # 🌟 AstrBot Link Resolver (魔改增强版)
 
+## Telegram 与 NAS 联动
+
+Telegram 的解析说明默认使用文字，实际图片和视频保留媒体格式；回复图片
+后的升图、AVIF 等命令使用平台解析的引用图片。处理提示更新原消息，文件
+通过平台发送，QQ 保留原有图片卡片和 OneBot 文件接口。
+
+`download_proxy` 可指定 NAS HTTP 代理地址。媒体、缩略图、升图原图和分类模型
+下载配置此代理后不继承
+本机环境代理；NAS 联动中的 Telegram 收发和原有下载插件仍由 NAS 执行。
+
 ## v1.9.1：AnimeJaNai 原生 4K 自动输出
 
 - 新增快手、视频号、知乎、小黑盒、A站、YouTube、TikTok、Instagram、Pixiv、Iwara、网易云和 NGA 的通用媒体下载通道。

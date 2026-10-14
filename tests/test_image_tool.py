@@ -170,9 +170,9 @@ class TestImageToolMixin(unittest.IsolatedAsyncioTestCase):
 
         event = DummyEvent(
             message_components=[
-                Image(url=f"file://{img1.as_posix()}"),
-                Image(url=f"file://{img2.as_posix()}"),
-                Image(url=f"file://{img3.as_posix()}"),
+                Image(file=f"file://{img1.as_posix()}"),
+                Image(file=f"file://{img2.as_posix()}"),
+                Image(file=f"file://{img3.as_posix()}"),
             ],
             message_str="/升图",
         )
@@ -228,8 +228,8 @@ class TestImageToolMixin(unittest.IsolatedAsyncioTestCase):
 
         event = DummyEvent(
             message_components=[
-                Image(url=f"file://{img1.as_posix()}"),
-                Image(url=f"file://{img2.as_posix()}"),
+                Image(file=f"file://{img1.as_posix()}"),
+                Image(file=f"file://{img2.as_posix()}"),
             ],
             message_str="/升图",
         )
@@ -269,8 +269,8 @@ class TestImageToolMixin(unittest.IsolatedAsyncioTestCase):
         self.harness.image_classifier = classifier
         event = DummyEvent(
             message_components=[
-                Image(url=f"file://{image1.as_posix()}"),
-                Image(url=f"file://{image2.as_posix()}"),
+                Image(file=f"file://{image1.as_posix()}"),
+                Image(file=f"file://{image2.as_posix()}"),
             ],
             message_str="/升图",
         )
@@ -288,8 +288,8 @@ class TestImageToolMixin(unittest.IsolatedAsyncioTestCase):
 
         event = DummyEvent(
             message_components=[
-                Image(url=f"file://{img1.as_posix()}"),
-                Image(url=f"file://{img2.as_posix()}"),
+                Image(file=f"file://{img1.as_posix()}"),
+                Image(file=f"file://{img2.as_posix()}"),
             ],
             message_str="/升图 高保真",
         )
@@ -307,7 +307,7 @@ class TestImageToolMixin(unittest.IsolatedAsyncioTestCase):
         """Automatic selection must let the upscaler choose and cap the scale."""
         image = self._create_dummy_image("auto.png")
         event = DummyEvent(
-            message_components=[Image(url=f"file://{image.as_posix()}")],
+            message_components=[Image(file=f"file://{image.as_posix()}")],
             message_str="/升图",
         )
 
@@ -325,8 +325,8 @@ class TestImageToolMixin(unittest.IsolatedAsyncioTestCase):
 
         event = DummyEvent(
             message_components=[
-                Image(url=f"file://{img1.as_posix()}"),
-                Image(url=f"file://{img2.as_posix()}"),
+                Image(file=f"file://{img1.as_posix()}"),
+                Image(file=f"file://{img2.as_posix()}"),
             ],
             message_str="/avif",
         )
@@ -358,8 +358,8 @@ class TestImageToolMixin(unittest.IsolatedAsyncioTestCase):
 
         event = DummyEvent(
             message_components=[
-                Image(url=f"file://{small_img.as_posix()}"),
-                Image(url=f"file://{large_img.as_posix()}"),
+                Image(file=f"file://{small_img.as_posix()}"),
+                Image(file=f"file://{large_img.as_posix()}"),
             ],
             message_str="/升图",
         )
@@ -388,8 +388,8 @@ class TestImageToolMixin(unittest.IsolatedAsyncioTestCase):
         img2 = self._create_dummy_image("single2.png")
         event = DummyEvent(
             message_components=[
-                Image(url=f"file://{img1.as_posix()}"),
-                Image(url=f"file://{img2.as_posix()}"),
+                Image(file=f"file://{img1.as_posix()}"),
+                Image(file=f"file://{img2.as_posix()}"),
             ]
         )
         single_url = await self.harness._extract_image_url_for_tool(event)

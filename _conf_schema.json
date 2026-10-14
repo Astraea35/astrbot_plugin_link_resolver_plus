@@ -1,4 +1,10 @@
 {
+    "download_proxy": {
+        "type": "string",
+        "default": "",
+        "description": "媒体下载代理",
+        "hint": "填写 NAS 的 HTTP 代理地址；配置后下载流不继承本机环境代理。"
+    },
     "enable_platforms": {
         "description": "启用的平台",
         "hint": "勾选要启用解析的平台。",

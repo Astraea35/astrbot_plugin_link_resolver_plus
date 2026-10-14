@@ -610,7 +610,7 @@ class DouyinMixin:
         is_image_post = bool(image_urls or dynamic_urls)
         # 图文笔记始终合并转发；视频笔记根据配置决定
         enable_merge_send = is_image_post or getattr(self, "douyin_merge_send", True)
-        render_card = getattr(self, "douyin_render_card", False)
+        render_card = getattr(self, "douyin_render_card", False) and event.get_platform_name() != "telegram"
         summary_text = None
         if enable_merge_send and not render_card:
             summary_text = self._build_douyin_summary(

@@ -145,6 +145,7 @@ class ConfigMixin:
             self.managed_emoji_font_ready = False
 
     def _refresh_config(self) -> None:
+        self.download_proxy = str(self._get_config_value("download_proxy", "") or "").strip()
         self._configure_managed_fonts()
         user_font_paths = get_user_font_paths()
         managed_font_paths = get_managed_font_paths()
